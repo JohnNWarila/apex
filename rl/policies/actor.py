@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from rl.distributions import DiagonalGaussian
 
 from torch import sqrt
+from torch.distributions import Normal
 
 from rl.policies.base import Net
 
@@ -102,6 +103,114 @@ class GaussianMLP_Actor(Actor):
   def evaluate(self, inputs):
     x = self(inputs)
     return self.dist.evaluate(x)
+
+# TODO: make dedicated method for computing deterministic action with minimal other work
+# TODO: remove redundancies with this class and GaussianMLP, factor out the network head to rl.policies.distributions
+# Modification of above for Soft Actor Critic
+LOG_STD_MIN = -20
+LOG_STD_MAX = 2
+EPSILON = 1e-6
+# Actor network for soft actor critic
+class SAC_Gaussian_Actor(Actor):
+  def __init__(self, state_dim, action_dim, hidden_size=256, hidden_layers=2, env_name='NOT SET', nonlinearity=F.relu, normc_init=True, action_space=None):
+    super(SAC_Gaussian_Actor, self).__init__()
+
+    self.actor_layers = nn.ModuleList()
+    self.actor_layers += [nn.Linear(state_dim, hidden_size)]
+    for _ in range(hidden_layers-1):
+        self.actor_layers += [nn.Linear(hidden_size, hidden_size)]
+
+    # 2 network heads also computed as fully connected layers
+    self.mean_head = nn.Linear(hidden_size, action_dim)
+    self.logstd_head = nn.Linear(hidden_size, action_dim)
+
+    self.logstd_min = LOG_STD_MIN
+    self.logstd_max = LOG_STD_MAX
+    self.epsilon = EPSILON
+
+    self.action = None
+    self.action_dim = action_dim
+    self.env_name = env_name
+    self.nonlinearity = nonlinearity
+
+    # rescaling the action (from pranz24 implementation of SAC)
+    if action_space is None:
+        self.action_scale = torch.tensor(1.)
+        self.action_bias = torch.tensor(0.)
+    else:
+        self.action_scale = torch.FloatTensor(
+            (action_space.high - action_space.low) / 2.)
+        self.action_bias = torch.FloatTensor(
+            (action_space.high + action_space.low) / 2.)
+
+    # weight initialization scheme used in PPO paper experiments
+    self.normc_init = normc_init
+
+    self.init_parameters()
+    self.train()
+
+  # from pranz24's implementation of SAC
+  def to(self, device):
+    self.action_scale = self.action_scale.to(device)
+    self.action_bias = self.action_bias.to(device)
+    return super(SAC_Gaussian_Actor, self).to(device)
+
+  def init_parameters(self):
+    if self.normc_init:
+        self.apply(normc_fn)
+
+  def forward(self, inputs):
+
+    x = inputs
+    for l in self.actor_layers:
+        x = self.nonlinearity(l(x))
+
+    mean = self.mean_head(x)
+    logstd = self.logstd_head(x)
+
+    logstd = torch.clamp(logstd, self.logstd_min, self.logstd_max)
+
+    self.action = mean
+
+    return mean, logstd
+
+  # most of this code is copied from pranz24's implementation of SAC on github. exception is reparametrization trick
+  def sample(self, inputs):
+    mean, logstd = self.forward(inputs)
+    std = logstd.exp()
+
+    # Behold the reparametrization trick
+    normal = Normal(0, 1)
+    z = normal.sample()
+    x_t = mean + std * z   # does z need .to(device)?
+    y_t = torch.tanh(x_t)
+
+    # rescale the action
+    action = y_t * self.action_scale + self.action_bias
+
+    # compute log probabilities and enforce action bound
+    log_prob = normal.log_prob(x_t) - torch.log(self.action_scale * (1 - y_t.pow(2)) + self.epsilon)
+    log_prob = log_prob.sum(1, keepdim=True)
+    mean = torch.tanh(mean) * self.action_scale + self.action_bias
+
+    return action, log_prob, mean
+
+  def get_action(self):
+    return self.action
+
+  def act(self, inputs, deterministic=False):
+    if deterministic is False:
+      self.action, _, _ = self.sample(inputs)
+    else:
+      _, _, self.action = self.sample(inputs)
+
+    return action.detach()
+
+  def evaluate(self, inputs):
+    mean, logstd = self(inputs)
+    return torch.distributions.Normal(mean, logstd.exp())
+
+
 
 class FF_Actor(Actor):
   def __init__(self, state_dim, action_dim, hidden_size=256, hidden_layers=2, env_name='NOT SET', nonlinearity=F.relu, max_action=1):

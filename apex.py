@@ -290,7 +290,7 @@ if __name__ == "__main__":
     from rl.algos.async_td3 import run_experiment
 
     # args common for actors and learners
-    parser.add_argument("--env_name", default="Cassie-v0")                    # environment name
+    parser.add_argument("--env_name", default="Humanoid-v0")                    # environment name
     parser.add_argument("--hidden_size", default=256)                               # neurons in hidden layer
     parser.add_argument("--state_est", default=True, action='store_true')           # use state estimator or not
     parser.add_argument("--mirror", default=False, action='store_true')             # mirror actions or not
@@ -382,10 +382,45 @@ if __name__ == "__main__":
   elif sys.argv[1] == 'sac':
     sys.argv.remove(sys.argv[1])
     """
-      Utility for running Soft Actor Critic.
+      Utility for running Soft Actor Critic. (IN PROGRESS)
 
     """
+    from rl.algos.sync_td3 import run_experiment
 
+    # general args
+    parser.add_argument("--policy_name", type=str, default="SAC")
+    parser.add_argument("--env_name", "-e",   default="Humanoid-v2")
+    parser.add_argument("--logdir", type=str, default="./logs/sac/experiments/")        # Where to log diagnostics to
+    # parser.add_argument("--previous", type=str, default=None)                           # path to directory of previous policies for resuming training
+    parser.add_argument("--seed", default=0, type=int)                                  # Sets Gym, PyTorch and Numpy seeds
+    # parser.add_argument("--state_est", type=bool, default=True)                         # use state estimator or not
+    # parser.add_argument("--mirror", default=False, action='store_true')                 # mirror actions or not   
+    parser.add_argument("--redis_address", type=str, default=None)                      # address of redis server (for cluster setups)
+
+    # SAC algo args
+    # parser.add_argument("--n_itr", type=int, default=10000)                       # Number of iterations of the learning algorithm
+    parser.add_argument("--num_steps", type=int, default=5000)                      # Steps per epoch
+    parser.add_argument("--epochs", type=int, default=100)                          # Number of epochs
+    parser.add_argument("--replay_size", default=1e8, type=int)                     # Max size of replay buffer
+    parser.add_argument("--discount", default=0.99, type=float)                     # exploration/exploitation discount factor
+    parser.add_argument("--tau", default=0.005, type=float)                         # target update rate (tau)
+    parser.add_argument("--alpha", default=0.2, type=float)                         # entropy regularization coefficient
+    parser.add_argument("--a_lr", type=float, default=1e-3)                         # Actor: Adam learning rate
+    parser.add_argument("--c_lr", type=float, default=1e-3)                         # Critic: Adam learning rate
+    parser.add_argument("--alpha", default=0.2, type=float)                         # entropy regularization coefficient (This = 1/(reward scale) in original SAC paper)
+    parser.add_argument("--batch_size", default=100, type=int)                      # Batch size for both actor and critic
+
+    parser.add_argument("--max_traj_len", type=int, default=400)                    # max steps in each episode
+    parser.add_argument("--start_timesteps", default=1e4, type=int)                 # How many time steps purely random policy is run for at start of learning (for better exploration)
+
+    # parser.add_argument("--evaluate_freq", default=5000, type=int)                    # how often (timesteps) to evaluate learner
+
+    # parser.add_argument("--num_procs", type=int, default=30, help="Number of threads to train on")
+    # parser.add_argument("--max_grad_norm", type=float, default=0.05, help="Value to clip gradients at.")
+
+    args = parser.parse_args()
+
+    run_experiment(args)
     
 
   elif sys.argv[1] == 'eval':
