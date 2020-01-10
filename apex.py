@@ -54,7 +54,7 @@ def env_factory(path, state_est=True, mirror=False, speed=None, clock_based=Fals
       elif path == 'CassieIKNoDelta-v0':
         env_fn = partial(UnifiedCassieIKEnvNoDelta, "walking", clock_based=True, state_est=state_est)
       elif path == 'CassieStandingEnv-v0':
-        env_fn = partial(CassieStandingEnv, "stepping", simrate=60, state_est=True)
+        env_fn = partial(CassieStandingEnv, "walking", simrate=60, state_est=True)
       elif path == 'CassieGroundFrictionEnv-v0':
         env_fn = partial(CassieGroundFrictionEnv, "walking", clock_based=True, state_est=True)
 

@@ -1,6 +1,7 @@
 from .render import *
-from .param_noise import *
-from .remote_replay import *
+from .experiment import *
+from .plotting import *
+from .logging import *
 import sys
 
 class ProgBar():

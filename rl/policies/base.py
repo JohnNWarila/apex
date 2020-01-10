@@ -4,6 +4,22 @@ import torch.nn.functional as F
 
 from torch import sqrt
 
+class FFPolicy(nn.Module):
+    def __init__(self):
+        super(FFPolicy, self).__init__()
+
+    def forward(self, x):
+        raise NotImplementedError
+
+    def act(self, inputs, deterministic=False):
+        value, x = self(inputs)
+        action = self.dist.sample(x, deterministic=deterministic)
+        return value, action.detach()
+
+    def evaluate(self, inputs):
+        value, x = self(inputs)
+        return value, self.dist.evaluate(x)
+
 def normc_fn(m):
     classname = m.__class__.__name__
     if classname.find('Linear') != -1:

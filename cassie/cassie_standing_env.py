@@ -13,7 +13,7 @@ import pickle
 # Creating the Standing Environment
 class CassieStandingEnv:
 
-    def __init__(self, traj="stepping", simrate=60, state_est=True):
+    def __init__(self, traj="walking", simrate=60, state_est=True):
 
         # Using CassieSim
         self.sim = CassieSim('./cassie/cassiemujoco/cassie.xml')

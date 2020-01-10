@@ -7,11 +7,9 @@ from torch.distributions import kl_divergence
 
 import numpy as np
 from rl.algos import PPO
-from rl.policies import GaussianMLP_Actor
+from rl.policies.actor import GaussianMLP_Actor
 from rl.policies.critic import GaussianMLP_Critic
 from rl.envs.normalize import get_normalization_params, PreNormalizer
-
-from rl.envs.wrappers import SymmetricEnv
 
 import functools
 
@@ -243,7 +241,7 @@ def run_experiment(args):
     #     max_episode_steps = 1000
 
     # wrapper function for creating parallelized envs
-    env_fn = env_factory(args.env_name, state_est=args.state_est, mirror=args.mirror, speed=args.speed)
+    env_fn = env_factory(args.env_name, state_est=args.state_est, mirror=args.mirror)
     obs_dim = env_fn().observation_space.shape[0]
     action_dim = env_fn().action_space.shape[0]
 
@@ -252,8 +250,33 @@ def run_experiment(args):
     np.random.seed(args.seed)
 
     if args.previous is not None:
-        policy = torch.load(args.previous)
+        model = torch.load(args.previous)
+        policy = GaussianMLP_Actor(
+            obs_dim, action_dim,
+            env_name=args.env_name,
+            nonlinearity=torch.nn.functional.relu, 
+            bounded=True, 
+            init_std=np.exp(-2), 
+            learn_std=False,
+            normc_init=False
+        )
         print("loaded model from {}".format(args.previous))
+        if hasattr(model, 'state_dict') and not hasattr(model, 'keys'):
+            for keys in model.state_dict().keys():
+                policy.state_dict()[keys].data.copy_(model.state_dict()[keys])                
+            policy.obs_mean = model.obs_mean
+            policy.obs_std  = model.obs_std
+
+        elif hasattr(model, 'keys') and not hasattr(model, 'state_dict'):
+            for keys in model.keys():
+                if keys == "obs_mean":
+                    policy.obs_mean = model[keys]
+                elif keys == "obs_std":
+                    policy.obs_std = model[keys]
+                else:
+                    policy.state_dict()[keys].data.copy_(model[keys])
+        else:
+            raise Exception('Loaded model unrecognized!')
     else:
         policy = GaussianMLP_Actor(
             obs_dim, action_dim,
@@ -264,28 +287,32 @@ def run_experiment(args):
             learn_std=False,
             normc_init=False
         )
-        policy_copy = GaussianMLP_Actor(
-            obs_dim, action_dim, 
-            env_name=args.env_name,
-            nonlinearity=torch.nn.functional.relu, 
-            bounded=True, 
-            init_std=np.exp(-2), 
-            learn_std=False,
-            normc_init=False
-        )
-        critic = GaussianMLP_Critic(
-            obs_dim, 
-            env_name=args.env_name,
-            nonlinearity=torch.nn.functional.relu,
-            normc_init=False
-        )
+    policy_copy = GaussianMLP_Actor(
+        obs_dim, action_dim, 
+        env_name=args.env_name,
+        nonlinearity=torch.nn.functional.relu, 
+        bounded=True, 
+        init_std=np.exp(-2), 
+        learn_std=False,
+        normc_init=False
+    )
+    critic = GaussianMLP_Critic(
+        obs_dim, 
+        env_name=args.env_name,
+        nonlinearity=torch.nn.functional.relu, 
+        bounded=True, 
+        init_std=np.exp(-2), 
+        learn_std=False,
+        normc_init=False
+    )
 
-        policy.obs_mean, policy.obs_std = map(torch.Tensor, get_normalization_params(iter=args.input_norm_steps, noise_std=1, policy=policy, env_fn=env_fn))
-        critic.obs_mean = policy.obs_mean
-        policy_copy.obs_mean = policy.obs_mean
-        critic.obs_std = policy.obs_std
-        policy_copy.obs_std = policy.obs_std
+    policy.obs_mean, policy.obs_std = map(torch.Tensor, get_normalization_params(iter=args.input_norm_steps, noise_std=1, policy=policy, env_fn=env_fn))
+    critic.obs_mean = policy.obs_mean
+    policy_copy.obs_mean = policy.obs_mean
+    critic.obs_std = policy.obs_std
+    policy_copy.obs_std = policy.obs_std
 
+    
     policy.train(0)
     policy_copy.train(0)
     critic.train(0)
@@ -299,6 +326,8 @@ def run_experiment(args):
 
     # create a tensorboard logging object
     logger = create_logger(args)
+    print(args)
+    print(logger)
 
     print()
     print("Synchronous Distributed Proximal Policy Optimization:")
@@ -320,5 +349,10 @@ def run_experiment(args):
     print("\tmax grad norm:  {}".format(args.max_grad_norm))
     print("\tmax traj len:   {}".format(args.max_traj_len))
     print()
-
+    print(env_fn)
+    print(policy)
+    print(policy_copy)
+    print(critic)
+    print(args.n_itr)
+    print(logger)
     algo.train(env_fn, policy, policy_copy, critic, args.n_itr, logger=logger)

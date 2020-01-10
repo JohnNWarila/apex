@@ -1,4 +1,3 @@
-"""Proximal Policy Optimization (clip objective)."""
 from copy import deepcopy
 
 import torch
@@ -19,7 +18,6 @@ class PPOBuffer:
     """
     A buffer for storing trajectory data and calculating returns for the policy
     and critic updates.
-
     This container is intentionally not optimized w.r.t. to memory allocation
     speed because such allocation is almost never a bottleneck for policy 
     gradient. 
@@ -28,7 +26,6 @@ class PPOBuffer:
     off-by-one errors and other bugs in policy gradient implementations, so
     this code is optimized for clarity and readability, at the expense of being
     (very) marginally slower than some other implementations. 
-
     (Premature optimization is the root of all evil).
     """
     def __init__(self, gamma=0.99, lam=0.95, use_gae=False):
@@ -400,6 +397,3 @@ class PPO:
             if self.highest_reward < avg_eval_reward:
                 self.highest_reward = avg_eval_reward
                 self.save(policy)
-
-
-            
