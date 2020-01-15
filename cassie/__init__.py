@@ -9,4 +9,5 @@ from .speed_double_freq_env import CassieEnv_speed_dfreq
 from .ground_friction_env import CassieGroundFrictionEnv
 from .cassie_standing_env import CassieStandingEnv
 from .speed_no_delta_neutral_foot_env import CassieEnv_speed_no_delta_neutral_foot
+from .cassie_zero_speed_env import CassieZeroSpeedSteppingEnv
 from .cassiemujoco import *

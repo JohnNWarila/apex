@@ -10,8 +10,8 @@ import random
 
 import pickle
 
-class CassieEnv_rand_dyn:
-    def __init__(self, traj, simrate=60, clock_based=False, state_est=False):
+class CassieZeroSpeedSteppingEnv:
+    def __init__(self, traj="stepping", simrate=60, clock_based=True, state_est=True):
         self.sim = CassieSim("./cassie/cassiemujoco/cassie.xml")
         self.vis = None
 
