@@ -9,7 +9,8 @@ from rl.utils import renderpolicy
 from cassie.speed_no_delta_neutral_foot_env import CassieEnv_speed_no_delta_neutral_foot
 from cassie.speed_sidestep_env import CassieEnv_speed_sidestep
 
-from rl.policies import GaussianMLP
+# from rl.policies import GaussianMLP
+from rl.policies.actor import Gaussian_FF_Actor
 
 class CassieFootTrajectory:
     def __init__(self, filepath):
@@ -28,17 +29,17 @@ class CassieFootTrajectory:
         return len(self.rfoot)
 
 # Load environment and policy
-simrate = 15
+simrate = 60
 cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", simrate = simrate, clock_based=True, state_est=True)
 # cassie_env = CassieEnv_speed_sidestep("walking", simrate=simrate, clock_based=True, state_est=True)
 obs_dim = cassie_env.observation_space.shape[0] # TODO: could make obs and ac space static properties
 action_dim = cassie_env.action_space.shape[0]
 
 offset = np.array([0.0045, 0.0, 0.4973, -1.1997, -1.5968, 0.0045, 0.0, 0.4973, -1.1997, -1.5968])
-file_prefix = "fwrd_walk_StateEst_speed-05-1_freq1_foottraj_land0.2_simrate15_(1)"
+file_prefix = "fwrd_walk_StateEst_speed-05-3_freq1-2_foottraj_land0.2"
 # file_prefix = "sidestep_StateEst_justfootmatch_simrate15_bigweight"
 # file_prefix = "sidestep_StateEst_speedmatch_footytraj_doublestance_time0.4_land0.4_vels_avgdiff_simrate15_bigweight_actpenalty_retrain_(2)"
-policy = torch.load("./trained_models/{}.pt".format(file_prefix))
+policy = torch.load("./trained_models/new_policies/{}_actor.pt".format(file_prefix))
 # policy.bounded = False
 policy.eval()
 # foot_traj = CassieFootTrajectory("./cassie/trajectory/foottraj_doublestance_time0.4_land0.4_h0.2.pkl")
@@ -63,19 +64,15 @@ with torch.no_grad():
     cassie_env.phase_add = 1.0
     # print("first phase: ", cassie_env.phase)
     for i in range(pre_steps):
-        _, action = policy.act(state, True)
+        action = policy(state, True)
         state, reward, done, _ = cassie_env.step(action.data.numpy())
         state = torch.Tensor(state)
         # print("phase: ", cassie_env.phase)
     # print("phase at begin: ", cassie_env.phase)
     for i in range(num_steps):
-        _, action = policy.act(state, True)
-        action = action.data.numpy()
+        action = policy(state, True)
         for j in range(simrate):
-            target = action + offset
-            real_action = action
-
-            cassie_env.step_simulation(real_action)
+            cassie_env.step_simulation(action.data.numpy())
             curr_qpos = cassie_env.sim.qpos()
             curr_qvel = cassie_env.sim.qvel()
             curr_foot = np.concatenate((cassie_env.cassie_state.leftFoot.position, cassie_env.cassie_state.rightFoot.position))

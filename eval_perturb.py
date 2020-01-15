@@ -1,10 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-# from matplotlib import cm
 import matplotlib.colors as mcolors
 import matplotlib as mpl
 import torch
-from torch.autograd import Variable
 import time
 import cmath
 
@@ -12,7 +10,8 @@ from cassie import CassieEnv
 from cassie.speed_no_delta_neutral_foot_env import CassieEnv_speed_no_delta_neutral_foot
 from cassie.speed_sidestep_env import CassieEnv_speed_sidestep
 
-from rl.policies import GaussianMLP
+# from rl.policies import GaussianMLP
+from rl.policies.actor import Gaussian_FF_Actor
 
 def compute_perturbs(cassie_env, policy, wait_time, perturb_duration, perturb_size, perturb_incr, perturb_body, num_angles):
     perturb_dir = -2*np.pi*np.linspace(0, 1, num_angles+1)  # Angles from straight forward to apply force
@@ -25,7 +24,7 @@ def compute_perturbs(cassie_env, policy, wait_time, perturb_duration, perturb_si
     cassie_env.phase_add = 1
     # Simulate for "wait_time" first to stabilize
     for i in range(num_steps*4):
-        _, action = policy.act(state, True)
+        action = policy(state, True)
         action = action.data.numpy()
         state, reward, done, _ = cassie_env.step(action)
         state = torch.Tensor(state)
@@ -35,7 +34,7 @@ def compute_perturbs(cassie_env, policy, wait_time, perturb_duration, perturb_si
     qpos_phase[:, 0] = cassie_env.sim.qpos()
     qvel_phase[:, 0] = cassie_env.sim.qvel()
     for i in range(num_steps-1):
-        _, action = policy.act(state, True)
+        action = policy(state, True)
         action = action.data.numpy()
         state, reward, done, _ = cassie_env.step(action)
         state = torch.Tensor(state)
@@ -73,7 +72,7 @@ def compute_perturbs(cassie_env, policy, wait_time, perturb_duration, perturb_si
                 start_t = curr_time
                 while curr_time < start_t + perturb_duration:
                     cassie_env.sim.apply_force([force_x, force_y, 0, 0, 0, 0], perturb_body)
-                    _, action = policy.act(state, True)
+                    action = policy(state, True)
                     action = action.data.numpy()
                     state, reward, done, _ = cassie_env.step(action)
                     state = torch.Tensor(state)
@@ -82,7 +81,7 @@ def compute_perturbs(cassie_env, policy, wait_time, perturb_duration, perturb_si
                 cassie_env.sim.apply_force([0, 0, 0, 0, 0, 0], perturb_body)
                 start_t = curr_time
                 while curr_time < start_t + wait_time:
-                    _, action = policy.act(state, True)
+                    action = policy(state, True)
                     action = action.data.numpy()
                     state, reward, done, _ = cassie_env.step(action)
                     state = torch.Tensor(state)
@@ -94,27 +93,15 @@ def compute_perturbs(cassie_env, policy, wait_time, perturb_duration, perturb_si
             print("max force: ", curr_size - perturb_incr)
 
     print("Total compute time: ", time.time() - eval_start)
-    np.save("test_perturb_eval_phase.npy", max_force)
+    # np.save("test_perturb_eval_phase.npy", max_force)
 
 def plot_perturb(filename):
     data = np.load(filename)
     data = np.mean(data, axis=0)
     print("data: ", data.shape)
     num_angles = len(data)
-    angles = -2*np.pi*np.linspace(0, 1, num_angles+1)
     max_force = 50*np.ceil(np.max(data) / 50)
     print("max force: ", max_force)
-
-    # fig = plt.figure()
-    # clist = [(0, "red"), (0.125, "red"), (0.25, "orange"), (0.5, "green"), 
-    #      (0.7, "green"), (0.75, "blue"), (1, "blue")]
-    # rvb = mcolors.LinearSegmentedColormap.from_list("", clist)
-    # # norm = mpl.colors.Normalize(0, max_force)
-    # # cmap = cm.get_cmap("plasma")
-    # plt.polar(angles[:-1], data, color=rvb(data/max_force))
-    # ax = fig.gca()
-    # ax.set_ylim([0,max_force])
-    # plt.show()
 
     num_cells = 100
     fig, ax1 = plt.subplots(subplot_kw=dict(projection='polar'))
@@ -146,11 +133,11 @@ def plot_perturb(filename):
     img = plt.imread("./cassie_top_white.png")
     ax_image.imshow(img, alpha=.3)
     ax_image.axis('off')
-    # plt.show()
-    plt.savefig("./test_perturb_eval_phase.png")
+    plt.show()
+    # plt.savefig("./test_perturb_eval_phase.png")
 
-plot_perturb("./test_perturb_eval_phase.npy")
-exit()
+# plot_perturb("./test_perturb_eval_phase.npy")
+# exit()
 
 # Load environment and policy
 cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", clock_based=True, state_est=True)
@@ -159,7 +146,7 @@ cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", clock_based=True, 
 # file_prefix = "fwrd_walk_StateEst_speed-05-3_freq1-2_footvelpenalty_heightflag_footxypenalty"
 # file_prefix = "sidestep_StateEst_speedmatch_footytraj_doublestance_time0.4_land0.2_vels_avgdiff_simrate15_evenweight_actpenalty"
 file_prefix = "nodelta_neutral_StateEst_symmetry_speed0-3_freq1-2"
-policy = torch.load("./trained_models/{}.pt".format(file_prefix))
+policy = torch.load("./trained_models/new_policies/{}_actor.pt".format(file_prefix))
 policy.bounded = False
 policy.eval()
 

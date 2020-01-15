@@ -1,10 +1,7 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import torch
-from torch.autograd import Variable
 import time
 
-from rl.utils import renderpolicy
 from cassie import CassieEnv
 from cassie.no_delta_env import CassieEnv_nodelta
 from cassie.speed_env import CassieEnv_speed
@@ -12,7 +9,8 @@ from cassie.speed_double_freq_env import CassieEnv_speed_dfreq
 from cassie.speed_no_delta_neutral_foot_env import CassieEnv_speed_no_delta_neutral_foot
 from cassie.speed_sidestep_env import CassieEnv_speed_sidestep
 
-from rl.policies import GaussianMLP
+# from rl.policies import GaussianMLP
+from rl.policies.actor import Gaussian_FF_Actor
 
 # Load environment and policy
 # cassie_env = CassieEnv("walking", clock_based=True, state_est=False)
@@ -31,7 +29,7 @@ offset = np.array([0.0045, 0.0, 0.4973, -1.1997, -1.5968, 0.0045, 0.0, 0.4973, -
 # file_prefix = "fwrd_walk_StateEst_speed-05-3_freq1-2_footvelpenalty_heightflag_footxypenalty"
 # file_prefix = "sidestep_StateEst_speedmatch_footytraj_doublestance_time0.4_land0.2_vels_avgdiff_simrate15_evenweight_actpenalty"
 file_prefix = "nodelta_neutral_StateEst_symmetry_speed0-3_freq1-2"
-policy = torch.load("./trained_models/{}.pt".format(file_prefix))
+policy = torch.load("./trained_models/new_policies/{}_actor.pt".format(file_prefix))
 policy.bounded = False
 policy.eval()
 
@@ -42,7 +40,7 @@ cassie_env.phase_add = 1
 num_steps = cassie_env.phaselen + 1
 # Simulate for "wait_time" first to stabilize
 for i in range(num_steps*4):
-    _, action = policy.act(state, True)
+    action = policy(state, True)
     action = action.data.numpy()
     state, reward, done, _ = cassie_env.step(action)
     state = torch.Tensor(state)
@@ -52,7 +50,7 @@ qvel_phase = np.zeros((32, num_steps))
 qpos_phase[:, 0] = cassie_env.sim.qpos()
 qvel_phase[:, 0] = cassie_env.sim.qvel()
 for i in range(num_steps-1):
-    _, action = policy.act(state, True)
+    action = policy(state, True)
     action = action.data.numpy()
     state, reward, done, _ = cassie_env.step(action)
     state = torch.Tensor(state)
@@ -68,7 +66,7 @@ cassie_env.phase_add = 1
 wait_time = 4
 dt = 0.05
 speedup = 3
-perturb_time = 0
+perturb_time = 2
 perturb_duration = 0.2
 perturb_size = 150
 perturb_dir = -2*np.pi*np.linspace(0, 1, 5)  # Angles from straight forward to apply force
@@ -137,7 +135,7 @@ while render_state:
                 perturb_time = curr_time
 
         # Get action
-        _, action = policy.act(state, True)
+        action = policy(state, True)
         action = action.data.numpy()
         state, reward, done, _ = cassie_env.step(action)
         if cassie_env.sim.qpos()[2] < 0.4:
