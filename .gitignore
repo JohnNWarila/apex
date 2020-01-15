@@ -123,3 +123,7 @@ ray_timeline.json
 
 # logging directory
 /logs
+
+# qsub script outputs
+*.sh.e*
+*.sh.o*

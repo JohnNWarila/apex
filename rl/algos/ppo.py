@@ -7,11 +7,14 @@ from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from torch.distributions import kl_divergence
 
 from torch.nn.utils.rnn import pad_sequence
+from torch.utils.tensorboard import SummaryWriter
+from colorama import Fore, Style
 
 import time
 
 import numpy as np
 import os
+import sys
 
 import ray
 
@@ -125,20 +128,22 @@ class PPO:
         self.max_return = 0
         self.total_steps = 0
         self.highest_reward = -1
+        self.limit_cores = 0
 
         if args['redis_address'] is not None:
             ray.init(redis_address=args['redis_address'])
         else:
             ray.init()
 
-    def save(self, policy):
-        save_path = os.path.join("./trained_models", "ppo")
-        try:
-            os.makedirs(save_path)
-        except OSError:
-            pass
+    def save(self, policy, critic):
+        # save_path = os.path.join("./trained_models", "ppo")
+        # try:
+        #     os.makedirs(save_path)
+        # except OSError:
+        #     pass
         filetype = ".pt" # pytorch model
-        torch.save(policy, os.path.join("./trained_models", self.name + filetype))
+        torch.save(policy, os.path.join("./trained_models", self.name + "_actor"+filetype))
+        torch.save(critic, os.path.join("./trained_models", self.name + "_critic"+filetype))
 
     @ray.remote
     @torch.no_grad()
@@ -196,6 +201,14 @@ class PPO:
         # Don't don't bother launching another process for single thread
         if self.n_proc > 1:
             result = ray.get([worker.remote(*args) for _ in range(self.n_proc)])
+            real_proc = self.n_proc
+            if self.limit_cores:
+                real_proc = 50 - 16*int(np.log2(60 / env_fn().simrate))
+                print("limit cores active, using {} cores".format(real_proc))
+                args = (self, env_fn, policy, critic, min_steps*self.n_proc // real_proc, max_traj_len, deterministic)
+            result = ray.get([worker.remote(*args) for _ in range(real_proc)])
+            # result_ids = [worker.remote(*args) for _ in range(real_proc)]
+            # result = ray.get(result_ids)
         else:
             result = [worker._function(*args)]
 
@@ -217,9 +230,12 @@ class PPO:
                 merged.ptr      += buf.ptr
 
             return merged
-        return merge(result)
+        total_buf = merge(result)
+        if len(total_buf) > min_steps*self.n_proc * 1.5:
+            self.limit_cores = 1
+        return total_buf
 
-    def update_policy(self, obs_batch, action_batch, return_batch, advantage_batch, mask, mirror_observation=None, mirror_action=None):
+    def update_policy(self, obs_batch, action_batch, return_batch, advantage_batch, mask, env, mirror_observation=None, mirror_action=None):
         policy = self.policy
         critic = self.critic
         old_policy = self.old_policy
@@ -293,6 +309,9 @@ class PPO:
         self.critic_optimizer = optim.Adam(critic.parameters(), lr=self.lr, eps=self.eps)
 
         start_time = time.time()
+        opt_time = np.zeros(n_itr)
+        samp_time = np.zeros(n_itr)
+        eval_time = np.zeros(n_itr)
 
         env = env_fn()
         obs_mirr, act_mirr = None, None
@@ -305,7 +324,6 @@ class PPO:
         if hasattr(env, 'mirror_action'):
           act_mirr = env.mirror_action
 
-
         for itr in range(n_itr):
             print("********** Iteration {} ************".format(itr))
 
@@ -313,7 +331,8 @@ class PPO:
             batch = self.sample_parallel(env_fn, self.policy, self.critic, self.num_steps, self.max_traj_len)
 
             print("time elapsed: {:.2f} s".format(time.time() - start_time))
-            print("sample time elapsed: {:.2f} s".format(time.time() - sample_start))
+            samp_time[itr] = time.time() - sample_start
+            print("sample time elapsed: {:.2f} s".format(samp_time[itr]))
 
             observations, actions, returns, values = map(torch.Tensor, batch.get())
 
@@ -359,7 +378,7 @@ class PPO:
                         advantage_batch = advantages[indices]
                         mask            = 1
 
-                    scalars = self.update_policy(obs_batch, action_batch, return_batch, advantage_batch, mask, mirror_observation=obs_mirr, mirror_action=act_mirr)
+                    scalars = self.update_policy(obs_batch, action_batch, return_batch, advantage_batch, mask, env, mirror_observation=obs_mirr, mirror_action=act_mirr)
                     actor_loss, entropy, critic_loss, ratio, kl = scalars
 
                     entropies.append(entropy)
@@ -374,31 +393,62 @@ class PPO:
                     print("Max kl reached, stopping optimization early.")
                     break
 
-            print("optimizer time elapsed: {:.2f} s".format(time.time() - optimizer_start))        
+            opt_time[itr] = time.time() - optimizer_start
+            print("optimizer time elapsed: {:.2f} s".format(opt_time[itr]))        
 
             if logger is not None:
                 evaluate_start = time.time()
-                test = self.sample_parallel(env_fn, self.policy, self.critic, 800 // self.n_proc, self.max_traj_len, deterministic=True)
-                print("evaluate time elapsed: {:.2f} s".format(time.time() - evaluate_start))
+                eval_proc = min(self.n_proc, 24)
+                test = self.sample_parallel(env_fn, self.policy, self.critic, 800 // eval_proc, self.max_traj_len, deterministic=True)
+                eval_time[itr] = time.time() - evaluate_start
+                print("evaluate time elapsed: {:.2f} s".format(eval_time[itr]))                
 
                 avg_eval_reward = np.mean(test.ep_returns)
                 print("avg eval reward: {:.2f}".format(avg_eval_reward))
+                avg_batch_reward = np.mean(batch.ep_returns)
+                avg_ep_len = np.mean(batch.ep_lens)
+                pdf = policy.distribution(observations)
 
                 entropy = np.mean(entropies)
                 kl = np.mean(kls)
 
-                logger.add_scalar("Test/Return", avg_eval_reward, itr)
-                logger.add_scalar("Train/Return", np.mean(batch.ep_returns), itr)
-                logger.add_scalar("Train/Mean Eplen", np.mean(batch.ep_lens), itr)
-                logger.add_scalar("Train/Mean KL Div", kl, itr)
-                logger.add_scalar("Train/Mean Entropy", entropy, itr)
-                logger.add_scalar("Misc/Timesteps", self.total_steps, itr)
+                sys.stdout.write("-" * 37 + "\n")
+                sys.stdout.write("| %15s | %15s |" % ('Return (test)', avg_eval_reward) + "\n")
+                sys.stdout.write("| %15s | %15s |" % ('Return (batch)', avg_batch_reward) + "\n")
+                sys.stdout.write("| %15s | %15s |" % ('Mean Eplen', avg_ep_len) + "\n")
+                sys.stdout.write("| %15s | %15s |" % ('Mean KL Div', "%8.3g" % kl) + "\n")
+                sys.stdout.write("| %15s | %15s |" % ('Mean Entropy', "%8.3g" % entropy) + "\n")
+                sys.stdout.write("-" * 37 + "\n")
+                sys.stdout.flush()
+
+                # logger.add_scalar("Test/Return", avg_eval_reward, itr)
+                # logger.add_scalar("Train/Return", np.mean(batch.ep_returns), itr)
+                # logger.add_scalar("Train/Mean Eplen", np.mean(batch.ep_lens), itr)
+                # logger.add_scalar("Train/Mean KL Div", kl, itr)
+                # logger.add_scalar("Train/Mean Entropy", entropy, itr)
+                # logger.add_scalar("Misc/Timesteps", self.total_steps, itr)
+
+                logger.add_scalar("Data/Return (test)", avg_eval_reward, itr)
+                logger.add_scalar("Data/Return (batch)", avg_batch_reward, itr)
+                logger.add_scalar("Data/Mean Eplen", avg_ep_len, itr)
+
+                logger.add_scalar("Misc/Mean KL Div", kl, itr)
+                logger.add_scalar("Misc/Mean Entropy", entropy, itr)
+                logger.add_scalar("Misc/Critic Loss", critic_loss, itr)
+                logger.add_scalar("Misc/Actor Loss", actor_loss, itr)
+
+                logger.add_histogram("Misc/Sample Times", samp_time[0:itr+1], itr)
+                logger.add_histogram("Misc/Optimize Times", opt_time[0:itr+1], itr)
+                logger.add_histogram("Misc/Evaluation Times", eval_time[0:itr+1], itr)
+
+                for i in range(pdf.loc.shape[1]): # go thru al actions
+                    logger.add_histogram("Action Dist/action_"+str(i), pdf.loc[:,i], itr)
 
             # TODO: add option for how often to save model
             if self.highest_reward < avg_eval_reward:
                 self.highest_reward = avg_eval_reward
-                torch.save(policy, os.path.join(logger.dir, 'actor.pt'))
-                #self.save(policy)
+                # torch.save(policy, os.path.join(logger.dir, '_actor.pt'))
+                self.save(policy, critic)
 
 def run_experiment(args):
     from apex import env_factory, create_logger
@@ -435,7 +485,10 @@ def run_experiment(args):
     algo = PPO(args=vars(args))
 
     # create a tensorboard logging object
-    logger = create_logger(args)
+    # logger = create_logger(args)
+    log_path = args.logdir + args.policy_name + "/"
+    logger = SummaryWriter(log_path, flush_secs=0.1)
+    print(Fore.GREEN + Style.BRIGHT + "Logging data using TensorBoard to {}".format(log_path + Style.RESET_ALL))
 
     print()
     print("Synchronous Distributed Proximal Policy Optimization:")
