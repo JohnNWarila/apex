@@ -323,4 +323,4 @@ def normc_fn(m):
         if m.bias is not None:
             m.bias.data.fill_(0)
 
-GaussianMLP_Actor = Gaussian_FF_Actor # for legacy code compatibility
+# GaussianMLP_Actor = Gaussian_FF_Actor # for legacy code compatibility
