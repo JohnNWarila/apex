@@ -14,7 +14,7 @@ import random
 import pickle
 
 class CassieEnv_v2:
-  def __init__(self, traj='walking', simrate=60, clock_based=False, state_est=False, dynamics_randomization=False, no_delta=False, reward="iros_paper", history=0):
+  def __init__(self, traj='walking', simrate=60, clock_based=False, state_est=False, dynamics_randomization=False, no_delta=False, reward=None, history=0):
     self.sim = CassieSim("./cassie/cassiemujoco/cassie.xml")
     self.vis = None
 

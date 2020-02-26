@@ -27,7 +27,7 @@ def print_logo(subtitle="", option=2):
     print(subtitle)
     print("\n")
 
-def env_factory(path, traj="walking", clock_based=True, state_est=True, dynamics_randomization=True, mirror=False, no_delta=False, history=0, **kwargs):
+def env_factory(path, traj="walking", clock_based=True, state_est=True, dynamics_randomization=True, mirror=False, no_delta=False, reward=None, history=0, **kwargs):
     from functools import partial
 
     """
@@ -48,7 +48,7 @@ def env_factory(path, traj="walking", clock_based=True, state_est=True, dynamics
         from cassie import CassieEnv, CassieStandingEnv
 
         if path == 'Cassie-v0':
-            env_fn = partial(CassieEnv, traj=traj, clock_based=clock_based, state_est=state_est, dynamics_randomization=dynamics_randomization, no_delta=no_delta, history=history)
+            env_fn = partial(CassieEnv, traj=traj, clock_based=clock_based, state_est=state_est, dynamics_randomization=dynamics_randomization, no_delta=no_delta, reward=reward, history=history)
         elif path == 'CassieStandingEnv-v0':
             env_fn = partial(CassieStandingEnv, state_est=state_est)
 
@@ -153,7 +153,7 @@ def eval_policy(policy, args, run_args):
     visualize = True
 
     if run_args.env_name == "Cassie-v0":
-        env = CassieEnv(traj=run_args.traj, state_est=run_args.state_est, dynamics_randomization=run_args.dyn_random, clock_based=run_args.clock_based, history=run_args.history)
+        env = CassieEnv(traj=run_args.traj, state_est=run_args.state_est, dynamics_randomization=run_args.dyn_random, clock_based=run_args.clock_based, reward=args.reward, history=run_args.history)
     else:
         env = CassieStandingEnv(state_est=run_args.state_est)
     
@@ -256,7 +256,7 @@ if __name__ == "__main__":
     parser.add_argument("--state_est", default=True, action='store_true')
     parser.add_argument("--dyn_random", default=False, action='store_true')
     parser.add_argument("--no_delta", default=False, action='store_true')
-    parser.add_argument("--reward", default="iros_paper", )
+    parser.add_argument("--reward", default="iros_paper", type=str)
     parser.add_argument("--mirror", default=False, action='store_true')             # mirror actions or not
 
     """
