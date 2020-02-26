@@ -25,7 +25,7 @@ def get_ref_com_vel(self, phase=None):
 
     return cvel
 
-def get_ref_aslip_ext_state(self, phase=None, offset=False):
+def get_ref_aslip_ext_state(self, phase=None, offset=None):
 
     if phase is None:
         phase = self.phase
@@ -40,12 +40,12 @@ def get_ref_aslip_ext_state(self, phase=None, offset=False):
     cpos = np.copy(self.trajectory.cpos[phase])
     cvel = np.copy(self.trajectory.cvel[phase])
 
-    if offset:
-        com_pos_vertical_offset = 0.2
-        cpos[2] += com_pos_vertical_offset
+    # Manual z offset to get taller walking
+    if offset is not None:
+        cpos[2] += offset
         # need to update these because they 
-        lpos[2] += com_pos_vertical_offset
-        rpos[2] += com_pos_vertical_offset
+        lpos[2] += offset
+        rpos[2] += offset
 
     return rpos, rvel, lpos, lvel, cpos, cvel
 
@@ -128,10 +128,13 @@ def aslip_reward(self, action):
     return reward
 
 def aslip_TaskSpace_reward(self, action):
-
+    qpos = np.copy(self.sim.qpos())
+    qvel = np.copy(self.sim.qvel())
+    
     phase_to_match = self.phase + 1
 
-    ref_rfoot, ref_rvel, ref_lfoot, ref_lvel, ref_cpos, ref_cvel = get_ref_aslip_ext_state(self, phase_to_match, offset=True)
+    # offset now directly in trajectories
+    ref_rfoot, ref_rvel, ref_lfoot, ref_lvel, ref_cpos, ref_cvel = get_ref_aslip_ext_state(self, phase_to_match, offset=None)
 
     footpos_error        = 0
     compos_error         = 0
@@ -155,7 +158,7 @@ def aslip_TaskSpace_reward(self, action):
         print("ref_rfoot: {}  rfoot: {}".format(ref_rfoot, rfoot))
         print("ref_lfoot: {}  lfoot: {}".format(ref_lfoot, lfoot))
         print(footpos_error)
-        print("ref_cpos:  {}   cpos: {}".format(ref_cpos, cpos))
+        print("ref_cpos:  {}   cpos: {}".format(ref_cpos, com_pos))
         print(compos_error)
 
     # try to match com velocity
