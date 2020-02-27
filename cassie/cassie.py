@@ -15,7 +15,7 @@ import pickle
 
 class CassieEnv_v2:
   def __init__(self, traj='walking', simrate=60, clock_based=False, state_est=False, dynamics_randomization=False, no_delta=False, reward=None, history=0):
-    self.sim = CassieSim("./cassie/cassiemujoco/cassie.xml")
+    self.sim = CassieSim("./cassie/cassiemujoco/cassie_playground.xml")
     self.vis = None
 
     self.reward_func = reward
@@ -33,7 +33,6 @@ class CassieEnv_v2:
         self.speed = self.speeds[0]
         self.trajectory = self.trajectories[0]
         self.aslip_traj = True
-        self.clock_based = False
     else:
         self.aslip_traj = False
         dirname = os.path.dirname(__file__)
@@ -536,14 +535,14 @@ class CassieEnv_v2:
       # line trajectories.
 
       # CLOCK BASED (NO TRAJECTORY)
-      if self.clock_based and not self.aslip_traj:
+      if self.clock_based:
         clock = [np.sin(2 * np.pi *  self.phase / self.phaselen),
                  np.cos(2 * np.pi *  self.phase / self.phaselen)]
         
         ext_state = np.concatenate((clock, [self.speed]))
 
       # ASLIP TRAJECTORY
-      elif self.aslip_traj:
+      elif self.aslip_traj and not self.clock_based:
         if(self.phase == 0):
             ext_state = np.concatenate(get_ref_aslip_ext_state(self, self.phaselen - 1))
         else:

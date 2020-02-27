@@ -370,7 +370,10 @@ class PPO:
                     losses.append([actor_loss, entropy, critic_loss, ratio, kl])
                     
                 # TODO: add verbosity arguments to suppress this
-                print(' '.join(["%g"%x for x in np.mean(losses, axis=0)]))
+                try:
+                    print(' '.join(["%g"%x for x in np.mean(losses, axis=0)]))
+                except:
+                    print(losses.shape)
 
                 # Early stopping 
                 if np.mean(kl) > 0.02:
