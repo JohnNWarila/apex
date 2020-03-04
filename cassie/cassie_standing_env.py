@@ -2,6 +2,8 @@ from .cassiemujoco import pd_in_t, state_out_t, CassieSim, CassieVis
 
 from .trajectory import CassieTrajectory
 
+from .quaternion_function import *
+
 from math import floor
 
 import numpy as np 
@@ -10,10 +12,12 @@ import random
 
 import pickle
 
+from shapely.geometry import Polygon
+
 # Creating the Standing Environment
 class CassieStandingEnv:
 
-    def __init__(self, traj="walking", simrate=60, state_est=True):
+    def __init__(self, traj="stepping", simrate=60, state_est=True):
 
         # Using CassieSim
         self.sim = CassieSim('./cassie/cassiemujoco/cassie.xml')
@@ -142,10 +146,8 @@ class CassieStandingEnv:
     def compute_reward(self):
         qpos = np.copy(self.sim.qpos())
         qvel = np.copy(self.sim.qvel())
-        left_foot_pos = self.cassie_state.leftFoot.position[:]
-        right_foot_pos = self.cassie_state.rightFoot.position[:]
-        foot_pos = np.concatenate([left_foot_pos, right_foot_pos])
-
+        foot_len = 0.18
+        scaling_boundary = 1.1
         # # Pelvis Height
         # height_diff = np.linalg.norm(qpos[2] - self.goal_qpos[2])
         # height_diff = np.exp(-height_diff)
@@ -162,21 +164,84 @@ class CassieStandingEnv:
         # reward = 0.2 * height_diff + 0.6 * vel_diff + 0.2 * orient_diff
 
         # Upper Body Pose Modulation
-        left_roll = np.exp(-qpos[6]**2)
-        left_pitch = np.exp(-qpos[8]**2)
-        right_roll = np.exp(-qpos[13]**2)
-        right_pitch = np.exp(-qpos[15]**2)
+        left_roll = np.exp((0 - qpos[7])**2)
+        left_pitch = np.exp((0 - qpos[9])**2)
+        right_roll = np.exp((0 - qpos[21])**2)
+        right_pitch = np.exp((0 - qpos[23])**2)
         r_pose = 0.25 * left_roll + 0.25 * left_pitch + 0.25 * right_roll + 0.25 * right_pitch
 
         # COM Position Modulation
-        capture_point_pos = np.sqrt(0.5 * (np.abs(foot_pos[0]) + np.abs(foot_pos[3]))**2 + 0.5 * (np.abs(foot_pos[1]) + np.abs(foot_pos[4]))**2)
 
-        xy_com_pos = np.exp(-(capture_point_pos)**2)
-        z_com_pos = np.exp(-(qpos[1] - 0.9)**2)
+        foot_pos = [0, 0, 0, 0, 0, 0]
+        foot_pos = self.sim.foot_pos(foot_pos)
+
+        quat_offset = np.array([-0.24790886454547323, -0.24679713195445646, -0.6609396704367185, 0.663921021343526])
+
+        glf_euler = quaternion2euler(self.sim.xquat('left-foot') * offset)
+        grf_euler = quaternion2euler(self.sim.xquat('right-foot') * offset)
+
+        glf_euler /= np.linalg.norm(glf_euler)
+        grf_euler /= np.linalg.norm(grf_euler)
+
+        gltoe_pos = (foot_pos[:3] + 0.5 * foot_len * glf_euler)[0:2]
+        glheel_pos = (foot_pos[:3] - 0.5 * foot_len * glf_euler)[0:2]
+
+        grtoe_pos = (foot_pos[3:] + 0.5 * foot_len * grf_euler)[0:2]
+        grheel_pos = (foot_pos[3:] - 0.5 * foot_len * grf_euler)[0:2]
+
+        gltoe_pos = tuple(gltoe_pos.reshape(1, -1)[0])
+        glheel_pos = tuple(glheel_pos.reshape(1, -1)[0])
+
+        grtoe_pos = tuple(grtoe_pos.reshape(1, -1)[0])
+        grheel_pos = tuple(grheel_pos.reshape(1, -1)[0])
+
+        polygon = Polygon([gltoe_pos, glheel_pos, grheel_pos, grtoe_pos])
+        
+        polygon_centroid = [polygon.centroid.coords[0][0], polygon.centroid.coords[0][1]]
+        pelvis_pos = [qpos[0], qpos[1]]
+
+        polygon_centroid_mag = np.sqrt(polygon_centroid[0]**2 + polygon_centroid[1]**2)
+        pelvis_pos_mag = np.sqrt(qpos[0]**2 + qpos[1]**2)
+
+        xy_com_pos = np.exp(-(polygon_centroid_mag - pelvis_pos_mag)**2)
+        z_com_pos = np.exp(-(qpos[2] - 0.9)**2)
+
         r_com_pos = 0.5 * xy_com_pos + 0.5 * z_com_pos
+        # left_foot_angles = quaternion2euler(self.cassie_state.leftFoot.orientation)
+        # right_foot_angles = quaternion2euler(self.cassie_state.rightFoot.orientation)
+
+        # global_pelvis_angles = inverse_quaternion(self.cassie_state.pelvis.orientation)
+
+        # v_left = rotate_by_quaternion(np.array(self.cassie_state.leftFoot.position), global_pelvis_angles)
+        # v_toe_left_edge = (left_foot_pos[0:2] + np.array([foot_len / 2 * np.cos(left_foot_angles[2]), foot_len / 2 * np.sin(left_foot_angles[2])]))
+        # v_heel_left_edge = (left_foot_pos[0:2] - np.array([foot_len / 2 * np.cos(left_foot_angles[2]), foot_len / 2 * np.sin(left_foot_angles[2])]))
+
+        # v_right = rotate_by_quaternion(np.array(self.cassie_state.rightFoot.position), global_pelvis_angles)
+        # v_toe_right_edge = (right_foot_pos[0:2] + np.array([foot_len / 2 * np.cos(right_foot_angles[2]), foot_len / 2 * np.sin(right_foot_angles[2])]))    
+        # v_heel_right_edge = (right_foot_pos[0:2] - np.array([foot_len / 2 * np.cos(right_foot_angles[2]), foot_len / 2 * np.sin(right_foot_angles[2])]))
+
+        # v_centroid = (v_left[0:2] + v_right[0:2])/2
+
+        # v_toe_left_extended = scaling_boundary * (v_toe_left_edge - v_centroid) + v_centroid
+
+        # v_heel_left_extended = scaling_boundary * (v_heel_left_edge - v_centroid) + v_centroid
+
+        # v_toe_right_extended = scaling_boundary * (v_toe_right_edge - v_centroid) + v_centroid
+
+        # v_heel_right_extended = scaling_boundary * (v_heel_right_edge - v_centroid) + v_centroid
+
+        # v_toe_left_edge_point = tuple(v_toe_left_edge.reshape(1, -1)[0])
+        # v_heel_left_edge_point = tuple(v_heel_left_edge.reshape(1, -1)[0])
+        # v_toe_right_edge_point = tuple(v_toe_right_edge.reshape(1, -1)[0])
+        # v_heel_right_edge_point = tuple(v_heel_right_edge.reshape(1, -1)[0])
+
+        # v_toe_left_extended_point = tuple(v_toe_left_extended.reshape(1, -1)[0])
+        # v_heel_left_extended_point = tuple(v_heel_left_extended.reshape(1, -1)[0])
+        # v_toe_right_extended_point = tuple(v_toe_right_extended.reshape(1, -1)[0])
+        # v_heel_right_extended_point = tuple(v_heel_right_extended.reshape(1, -1)[0])
 
         # COM Velocity Modulation
-        capture_point_vel = capture_point_pos * np.sqrt(9.8/np.abs(qpos[1]))
+        capture_point_vel = np.abs(pelvis_pos_mag - polygon_centroid_mag) * np.sqrt(9.8/np.abs(qpos[1]))
 
         xy_com_vel = np.exp(-((capture_point_vel - np.sqrt(qvel[0]**2 + qvel[1]**2))**2))
         z_com_vel = np.exp(-(qvel[2]**2))
@@ -188,6 +253,7 @@ class CassieStandingEnv:
 
         # Total Reward
         reward = 0.33 * r_pose + 0.33 * r_com_pos + 0.34 * r_com_vel
+        print("r_pose: {}\tr_com_pos: {}\tr_com_vel: {}".format(r_pose, r_com_pos, r_com_vel))
 
         # Ground Contact
         if np.linalg.norm(self.cassie_state.leftFoot.heelForce) < 5 and np.linalg.norm(self.cassie_state.leftFoot.toeForce) < 5 and np.linalg.norm(self.cassie_state.rightFoot.heelForce) < 5 and np.linalg.norm(self.cassie_state.rightFoot.heelForce) < 5:

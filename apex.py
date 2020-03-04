@@ -45,20 +45,18 @@ def env_factory(path, state_est=True, mirror=False, speed=None, clock_based=Fals
       if path == 'Cassie-v0':
         env_fn = partial(CassieEnv_speed_no_delta_neutral_foot, "walking", clock_based=True, state_est=True)
       elif path == 'CassieRandomDynamics-v0':
-        env_fn = partial(CassieEnv_rand_dyn, "walking", clock_based=clock_based, state_est=state_est)
-      elif path == 'CassieRandomDynamics-v0':
-        env_fn = partial(CassieEnv_rand_dyn, "walking", clock_based=True, state_est=False)
+        env_fn = partial(CassieEnv_rand_dyn, "walking", clock_based=True, state_est=True)
       elif path == 'CassieIK-v0':
         # env_fn = partial(CassieIKEnv, "walking", clock_based=True, state_est=state_est, speed=speed)
         env_fn = partial(UnifiedCassieIKEnv, "walking", clock_based=True, state_est=state_est)
       elif path == 'CassieIKNoDelta-v0':
         env_fn = partial(UnifiedCassieIKEnvNoDelta, "walking", clock_based=True, state_est=state_est)
       elif path == 'CassieStandingEnv-v0':
-        env_fn = partial(CassieStandingEnv, "walking", simrate=60, state_est=True)
+        env_fn = partial(CassieStandingEnv, "stepping", simrate=60, state_est=True)
       elif path == 'CassieGroundFrictionEnv-v0':
         env_fn = partial(CassieGroundFrictionEnv, "walking", clock_based=True, state_est=True)
       elif path == 'CassieZeroSpeedSteppingEnv-v0':
-        env_fn = partial(CassieZeroSpeedSteppingEnv, "stepping", clock_based=True, state_est=True)
+        env_fn = partial(CassieZeroSpeedSteppingEnv, "walking", clock_based=True, state_est=True)
 
 
       if mirror:

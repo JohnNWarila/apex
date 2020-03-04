@@ -11,7 +11,7 @@ import random
 import pickle
 
 class CassieEnv_rand_dyn:
-    def __init__(self, traj, simrate=60, clock_based=False, state_est=False):
+    def __init__(self, traj, simrate=60, clock_based=True, state_est=True):
         self.sim = CassieSim("./cassie/cassiemujoco/cassie.xml")
         self.vis = None
 
@@ -19,15 +19,15 @@ class CassieEnv_rand_dyn:
         self.state_est = state_est
 
         if clock_based:
-            self.observation_space = np.zeros(42)
+            self.observation_space = np.zeros(42 + 1)
             if self.state_est:
-                self.observation_space = np.zeros(48)       # Size for use with state est
+                self.observation_space = np.zeros(48 + 1)       # Size for use with state est
         else:
             self.observation_space = np.zeros(80)
             if self.state_est:
                 self.observation_space = np.zeros(86)       # Size for use with state est
 
-        self.action_space = np.zeros(10)
+        self.action_space      = np.zeros(10)
 
         dirname = os.path.dirname(__file__)
         if traj == "walking":
@@ -64,7 +64,7 @@ class CassieEnv_rand_dyn:
         self.pos_idx = [7, 8, 9, 14, 20, 21, 22, 23, 28, 34]
         self.vel_idx = [6, 7, 8, 12, 18, 19, 20, 21, 25, 31]
 
-        self.speed = 0
+        self.speed = 1
         # maybe make ref traj only send relevant idxs?
         ref_pos, ref_vel = self.get_ref_state(self.phase)
         self.prev_action = ref_pos[self.pos_idx]
@@ -336,56 +336,62 @@ class CassieEnv_rand_dyn:
 
         ref_pos, ref_vel = self.get_ref_state(self.phase)
 
-        # TODO: should be variable; where do these come from?
-        # TODO: see magnitude of state variables to gauge contribution to reward
-        weight = [0.15, 0.15, 0.1, 0.05, 0.05, 0.15, 0.15, 0.1, 0.05, 0.05]
+        # # TODO: should be variable; where do these come from?
+        # # TODO: see magnitude of state variables to gauge contribution to reward
+        # weight = [0.15, 0.15, 0.1, 0.05, 0.05, 0.15, 0.15, 0.1, 0.05, 0.05]
 
-        joint_error       = 0
-        com_error         = 0
-        orientation_error = 0
-        spring_error      = 0
+        # joint_error       = 0
+        # com_error         = 0
+        # orientation_error = 0
+        # spring_error      = 0
 
-        # each joint pos
-        for i, j in enumerate(self.pos_idx):
-            target = ref_pos[j]
-            actual = qpos[j]
+        # # each joint pos
+        # for i, j in enumerate(self.pos_idx):
+        #     target = ref_pos[j]
+        #     actual = qpos[j]
 
-            joint_error += 30 * weight[i] * (target - actual) ** 2
+        #     joint_error += 30 * weight[i] * (target - actual) ** 2
 
-        # center of mass: x, y, z
-        for j in [0, 1, 2]:
-            target = ref_pos[j]
-            actual = qpos[j]
+        # # center of mass: x, y, z
+        # for j in [0, 1, 2]:
+        #     target = ref_pos[j]
+        #     actual = qpos[j]
 
-            # NOTE: in Xie et al y target is 0
+        #     # NOTE: in Xie et al y target is 0
 
-            com_error += (target - actual) ** 2
+        #     com_error += (target - actual) ** 2
         
-        # COM orientation: qx, qy, qz
-        for j in [4, 5, 6]:
-            target = ref_pos[j] # NOTE: in Xie et al orientation target is 0
-            actual = qpos[j]
+        # # COM orientation: qx, qy, qz
+        # for j in [4, 5, 6]:
+        #     target = ref_pos[j] # NOTE: in Xie et al orientation target is 0
+        #     actual = qpos[j]
 
-            orientation_error += (target - actual) ** 2
+        #     orientation_error += (target - actual) ** 2
 
-        # left and right shin springs
-        for i in [15, 29]:
-            target = ref_pos[i] # NOTE: in Xie et al spring target is 0
-            actual = qpos[i]
+        # # left and right shin springs
+        # for i in [15, 29]:
+        #     target = ref_pos[i] # NOTE: in Xie et al spring target is 0
+        #     actual = qpos[i]
 
-            spring_error += 1000 * (target - actual) ** 2      
+        #     spring_error += 1000 * (target - actual) ** 2      
         
-        reward = 0.5 * np.exp(-joint_error) +       \
-                 0.3 * np.exp(-com_error) +         \
-                 0.1 * np.exp(-orientation_error) + \
-                 0.1 * np.exp(-spring_error)
+        # reward = 0.5 * np.exp(-joint_error) +       \
+        #          0.3 * np.exp(-com_error) +         \
+        #          0.1 * np.exp(-orientation_error) + \
+        #          0.1 * np.exp(-spring_error)
 
-        # reward = np.sign(qvel[0])*qvel[0]**2
-        # desired_speed = 3.0
-        # speed_diff = np.abs(qvel[0] - desired_speed)
-        # if speed_diff > 1:
-        #     speed_diff = speed_diff**2
-        # reward = 20 - speed_diff
+        forward_diff = np.abs(qvel[0] - self.speed)
+        orient_diff = np.linalg.norm(qpos[3:7] - np.array([1, 0, 0, 0]))
+        y_vel = np.abs(qvel[1])
+        if forward_diff < 0.05:
+           forward_diff = 0
+        if y_vel < 0.03:
+          y_vel = 0
+        straight_diff = np.abs(qpos[1])
+        if straight_diff < 0.05:
+          straight_diff = 0
+
+        reward = .4*np.exp(-forward_diff) + .3*np.exp(-orient_diff) + .1*np.exp(-y_vel) + .2*np.exp(-straight_diff)
 
         return reward
 
@@ -420,11 +426,39 @@ class CassieEnv_rand_dyn:
 
         return pos, vel
 
+    def get_ref_state(self, phase=None):
+        if phase is None:
+            phase = self.phase
+
+        if phase > self.phaselen:
+            phase = 0
+
+        pos = np.copy(self.trajectory.qpos[phase * self.simrate])
+
+        # this is just setting the x to where it "should" be given the number
+        # of cycles
+        # pos[0] += (self.trajectory.qpos[-1, 0] - self.trajectory.qpos[0, 0]) * self.counter
+        
+        # ^ should only matter for COM error calculation,
+        # gets dropped out of state variable for input reasons
+
+        ###### Setting variable speed  #########
+        pos[0] *= self.speed
+        pos[0] += (self.trajectory.qpos[-1, 0]- self.trajectory.qpos[0, 0])* self.counter * self.speed
+        ######                          ########
+
+        # setting lateral distance target to 0?
+        # regardless of reference trajectory?
+        pos[1] = 0
+
+        vel = np.copy(self.trajectory.qvel[phase * self.simrate])
+        vel[0] *= self.speed
+
+        return pos, vel
+
     def get_full_state(self):
         qpos = np.copy(self.sim.qpos())
         qvel = np.copy(self.sim.qvel()) 
-
-        ref_pos, ref_vel = self.get_ref_state(self.phase + self.phase_add)
 
         # TODO: maybe convert to set subtraction for clarity
         # {i for i in range(35)} - 
@@ -483,17 +517,10 @@ class CassieEnv_rand_dyn:
         # [19] Right foot            (Motor [9], Joint [5])
         vel_index = np.array([0,1,2,3,4,5,6,7,8,12,13,14,18,19,20,21,25,26,27,31])
 
-        if self.clock_based:
-            #qpos[self.pos_idx] -= ref_pos[self.pos_idx]
-            #qvel[self.vel_idx] -= ref_vel[self.vel_idx]
-
-            clock = [np.sin(2 * np.pi *  self.phase / self.phaselen),
-                     np.cos(2 * np.pi *  self.phase / self.phaselen)]
-            
-            ext_state = clock
-
-        else:
-            ext_state = np.concatenate([ref_pos[pos_index], ref_vel[vel_index]])
+        clock = [np.sin(2 * np.pi *  self.phase / self.phaselen),
+                    np.cos(2 * np.pi *  self.phase / self.phaselen)]
+        
+        ext_state = np.concatenate((clock, [self.speed]))
 
         # Use state estimator
         robot_state = np.concatenate([
