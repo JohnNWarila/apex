@@ -601,7 +601,7 @@ class CassiePlayground:
       else:
         ext_state = np.concatenate([ref_pos[self.pos_index], ref_vel[self.vel_index]])
 
-    #   print("real orient: {}\t new orient: {}".format(self.cassie_state.pelvis.orientation[:], new_orient))
+    #   print("real orient: {}\t new orient: {}".format(curr_orient, new_orient))
 
       # Use state estimator
       robot_state = np.concatenate([

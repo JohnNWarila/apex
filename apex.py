@@ -139,7 +139,6 @@ def create_logger(args):
     logger.dir = output_dir
     return logger
 
-
 def eval_policy(policy, args, run_args):
 
     import tty
@@ -246,6 +245,22 @@ def eval_policy(policy, args, run_args):
     finally:
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
+# deal with loading hyperparameters of previous run continuation
+def parse_previous(args):
+    if args.previous is not None:
+        run_args = pickle.load(open(args.previous + "experiment.pkl", "rb"))
+        args.traj = run_args.traj
+        args.clock_based = run_args.clock_based
+        args.state_est = run_args.state_est
+        args.dyn_random = run_args.dyn_random
+        args.no_delta = run_args.no_delta
+        args.mirror = run_args.mirror
+        if args.env_name == "CassiePlayground-v0":
+            args.reward = "command"
+            args.run_name = run_args.run_name + "-playground"
+    
+    return args
+
 if __name__ == "__main__":
     import sys, argparse, time
     parser = argparse.ArgumentParser()
@@ -344,6 +359,8 @@ if __name__ == "__main__":
 
         args.recurrent = recurrent
 
+        args = parse_previous(args)
+
         run_experiment(args)
 
     elif sys.argv[1] == 'td3_sync':
@@ -385,6 +402,7 @@ if __name__ == "__main__":
         parser.add_argument("--noise_clip", default=0.5, type=float)                    # Range to clip target policy noise
         parser.add_argument("--policy_freq", default=2, type=int)                       # Frequency of delayed policy updates
         args = parser.parse_args()
+        args = parse_previous(args)
 
         run_experiment(args)
 
@@ -439,6 +457,7 @@ if __name__ == "__main__":
         parser.add_argument("--redis_address", type=str, default=None)                  # address of redis server (for cluster setups)
 
         args = parser.parse_args()
+        args = parse_previous(args)
 
         run_experiment(args)
 
@@ -481,6 +500,8 @@ if __name__ == "__main__":
 
         args = parser.parse_args()
         args.num_steps = args.num_steps // args.num_procs
+        args = parse_previous(args)
+
         run_experiment(args)
 
     elif sys.argv[1] == 'eval':
