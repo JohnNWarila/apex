@@ -44,11 +44,13 @@ def env_factory(path, traj="walking", clock_based=True, state_est=True, dynamics
       raise NotImplementedError
 
     # Custom Cassie Environment
-    if path in ['Cassie-v0', 'CassieStandingEnv-v0']:
-        from cassie import CassieEnv, CassieStandingEnv
+    if path in ['Cassie-v0', 'CassiePlayground-v0', 'CassieStandingEnv-v0']:
+        from cassie import CassieEnv, CassiePlayground, CassieStandingEnv
 
         if path == 'Cassie-v0':
             env_fn = partial(CassieEnv, traj=traj, clock_based=clock_based, state_est=state_est, dynamics_randomization=dynamics_randomization, no_delta=no_delta, reward=reward, history=history)
+        elif path == 'CassiePlayground-v0':
+            env_fn = partial(CassiePlayground, traj=traj, clock_based=clock_based, state_est=state_est, dynamics_randomization=dynamics_randomization, no_delta=no_delta, reward=reward, history=history)
         elif path == 'CassieStandingEnv-v0':
             env_fn = partial(CassieStandingEnv, state_est=state_est)
 
@@ -144,7 +146,7 @@ def eval_policy(policy, args, run_args):
     import termios
     import select
     import numpy as np
-    from cassie import CassieEnv, CassieStandingEnv
+    from cassie import CassieEnv, CassiePlayground, CassieStandingEnv
 
     def isData():
         return select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], [])
@@ -152,8 +154,10 @@ def eval_policy(policy, args, run_args):
     max_traj_len = args.traj_len
     visualize = True
 
-    if run_args.env_name == "Cassie-v0":
+    if args.env_name == "Cassie-v0":
         env = CassieEnv(traj=run_args.traj, state_est=run_args.state_est, dynamics_randomization=run_args.dyn_random, clock_based=run_args.clock_based, reward=run_args.reward, history=run_args.history)
+    elif args.env_name == "CassiePlayground-v0":
+        env = CassiePlayground(traj=run_args.traj, state_est=run_args.state_est, dynamics_randomization=run_args.dyn_random, clock_based=run_args.clock_based, reward=run_args.reward, history=run_args.history)
     else:
         env = CassieStandingEnv(state_est=run_args.state_est)
     
@@ -488,7 +492,6 @@ if __name__ == "__main__":
         parser.add_argument("--traj_len", default=400, type=str)
         parser.add_argument("--history", default=0, type=int)                                         # number of previous states to use as input
         args = parser.parse_args()
-
 
         run_args = pickle.load(open(args.path + "experiment.pkl", "rb"))
 

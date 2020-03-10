@@ -5,6 +5,8 @@ from .cassiemujoco import pd_in_t, state_out_t, CassieSim, CassieVis
 from .trajectory import CassieTrajectory, getAllTrajectories
 from .reward import *
 
+from .quaternion_function import *
+
 from math import floor
 
 import numpy as np 
@@ -13,12 +15,28 @@ import random
 
 import pickle
 
-class CassieEnv_v2:
-  def __init__(self, traj='walking', simrate=60, clock_based=False, state_est=False, dynamics_randomization=False, no_delta=False, reward=None, history=0):
+import torch
+
+class CommandTrajectory:
+    def __init__(self, filepath):
+        with open(filepath, "rb") as f:
+            trajectory = pickle.load(f)
+
+        self.global_pos = np.copy(trajectory["compos"])
+        self.speed_cmd = np.copy(trajectory["speed"])
+        
+        # NOTE: still need to rotate translational velocity and accleration
+        self.orient = np.copy(trajectory["orient"])
+        self.prev_orient = 0
+        
+        self.trajlen = len(self.speed_cmd)
+
+class CassiePlayground:
+  def __init__(self, traj='walking', simrate=60, clock_based=False, state_est=False, dynamics_randomization=False, no_delta=False, reward="command", history=0):
     self.sim = CassieSim("./cassie/cassiemujoco/cassie.xml")
     self.vis = None
 
-    self.reward_func = reward
+    self.reward_func = "command"
 
     self.clock_based = clock_based
     self.state_est = state_est
@@ -43,6 +61,10 @@ class CassieEnv_v2:
         self.trajectory = CassieTrajectory(traj_path)
         self.speed = 0
 
+    dirname = os.path.dirname(__file__)
+    traj_path = os.path.join(dirname, "trajectory", "command_trajectory.pkl")
+    self.command_traj = CommandTrajectory(traj_path)
+
     self.observation_space, self.clock_inds, self.mirrored_obs = self.set_up_state_space()
 
     # Adds option for state history for FF nets
@@ -66,6 +88,7 @@ class CassieEnv_v2:
     self.time    = 0 # number of time steps in current episode
     self.phase   = 0 # portion of the phase the robot is in
     self.counter = 0 # number of phase cycles completed in episode
+    self.command_counter = 0 # number of phase cycles used to index command trajectory in current episode
 
     # NOTE: a reference trajectory represents ONE phase cycle
 
@@ -202,6 +225,10 @@ class CassieEnv_v2:
       if (self.aslip_traj and self.phase >= self.phaselen) or self.phase > self.phaselen:
           self.phase = 0
           self.counter += 1
+          self.command_counter += 1
+
+      if self.command_counter >= self.command_traj.trajlen:
+          self.command_counter = 0
 
       # Early termination
       done = not(height > 0.4 and height < 3.0)
@@ -240,6 +267,8 @@ class CassieEnv_v2:
       self.phase = random.randint(0, self.phaselen)
       self.time = 0
       self.counter = 0
+      self.command_counter = 0
+      self.speed = self.command_traj.speed_cmd[self.command_counter]
 
       qpos, qvel = self.get_ref_state(self.phase)
 
@@ -351,6 +380,8 @@ class CassieEnv_v2:
       self.phase = 0
       self.time = 0
       self.counter = 0
+      self.command_counter = 0
+      self.speed = self.command_traj.speed_cmd[self.command_counter]
 
       qpos, qvel = self.get_ref_state(self.phase)
 
@@ -480,6 +511,8 @@ class CassieEnv_v2:
           return aslip_TaskSpace_reward(self, action)
       elif self.reward_func == "iros_paper":
           return iros_paper_reward(self)
+      elif self.reward_func == "command":
+          return command_reward(self)
       else:
           raise NotImplementedError
 
@@ -534,6 +567,22 @@ class CassieEnv_v2:
       # trajectory despite being global coord. Y is only invariant to straight
       # line trajectories.
 
+      # Update speed
+      self.speed = self.command_traj.speed_cmd[self.command_counter]
+
+      # Update orientation, translational vel, translational accel
+      orient_add = self.command_traj.orient[self.command_counter] - self.command_traj.prev_orient
+      quaternion = euler2quat(z=orient_add, x=0, y=0)
+      iquaternion = inverse_quaternion(quaternion)
+      curr_orient = self.cassie_state.pelvis.orientation[:]
+      curr_transvel = self.cassie_state.pelvis.translationalVelocity[:]
+      curr_transaccel = self.cassie_state.pelvis.translationalAcceleration[:]
+      new_orient = quaternion_product(iquaternion, curr_orient)
+      new_transvel = rotate_by_quaternion(curr_transvel, iquaternion)
+      new_transaccel = rotate_by_quaternion(curr_transaccel, iquaternion)
+      self.command_traj.prev_orient = self.command_traj.orient[self.command_counter]
+    #   print("Commanded speed: {}\t orient add: {}".format(self.speed, orient_add))
+
       # CLOCK BASED (NO TRAJECTORY)
       if self.clock_based:
         clock = [np.sin(2 * np.pi *  self.phase / self.phaselen),
@@ -552,17 +601,19 @@ class CassieEnv_v2:
       else:
         ext_state = np.concatenate([ref_pos[self.pos_index], ref_vel[self.vel_index]])
 
+    #   print("real orient: {}\t new orient: {}".format(self.cassie_state.pelvis.orientation[:], new_orient))
+
       # Use state estimator
       robot_state = np.concatenate([
           [self.cassie_state.pelvis.position[2] - self.cassie_state.terrain.height], # pelvis height
-          self.cassie_state.pelvis.orientation[:],                                 # pelvis orientation
+          torch.FloatTensor(new_orient),                                                               # pelvis orientation
           self.cassie_state.motor.position[:],                                     # actuated joint positions
 
-          self.cassie_state.pelvis.translationalVelocity[:],                       # pelvis translational velocity
+          torch.FloatTensor(new_transvel),                       # pelvis translational velocity
           self.cassie_state.pelvis.rotationalVelocity[:],                          # pelvis rotational velocity 
           self.cassie_state.motor.velocity[:],                                     # actuated joint velocities
 
-          self.cassie_state.pelvis.translationalAcceleration[:],                   # pelvis translational acceleration
+          torch.FloatTensor(new_transaccel),                   # pelvis translational acceleration
           
           self.cassie_state.joint.position[:],                                     # unactuated joint positions
           self.cassie_state.joint.velocity[:]                                      # unactuated joint velocities

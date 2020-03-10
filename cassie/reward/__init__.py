@@ -3,3 +3,4 @@
 from .aslip_taskspace_reward import *
 from .rnn_dyn_random_reward import *
 from .iros_paper_reward import *
+from .command_reward import *
