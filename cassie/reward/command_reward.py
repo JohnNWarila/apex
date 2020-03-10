@@ -55,7 +55,7 @@ def command_reward(self):
     # get current speed and orientation
     curr_pos = qpos[0:3]
     curr_speed = qvel[0]
-    curr_orient = quaternion2euler(qpos[3:7])
+    curr_orient = quaternion2euler(qpos[3:7])[2]
 
     # desired speed and orientation
     desired_pos    = self.command_traj.global_pos[self.command_counter]
@@ -70,4 +70,15 @@ def command_reward(self):
              0.3 * np.exp(-compos_error) +       \
              0.5 * np.exp(-orientation_error)
 
+    if self.debug:
+        print("reward: {6}\nspeed:\t{0:.2f}, % = {1:.2f}\ncompos:\t{2:.2f}, % = {3:.2f}\norient:\t{4:.2f}, % = {5:.2f}\n\n".format(
+        0.2  * np.exp(-speed_error),       0.2 * np.exp(-speed_error) / reward * 100,
+        0.3 * np.exp(-compos_error),    0.3 * np.exp(-compos_error) / reward * 100,
+        0.5 * np.exp(-orientation_error),    0.175 * np.exp(-orientation_error) / reward * 100,
+        reward
+        )
+        )
+        print("actual speed:  {}\tdesired_speed:  {}".format(curr_speed, self.speed))
+        print("actual compos: {}\tdesired_pos:    {}".format(curr_pos[0:2], desired_pos[0:2]))
+        print("actual orient: {}\tdesired_orient: {}".format(curr_orient, desired_orient))
     return reward

@@ -154,12 +154,16 @@ def eval_policy(policy, args, run_args):
     visualize = True
 
     if args.env_name == "Cassie-v0":
-        env = CassieEnv(traj=run_args.traj, state_est=run_args.state_est, dynamics_randomization=run_args.dyn_random, clock_based=run_args.clock_based, reward=run_args.reward, history=run_args.history)
+        env = CassieEnv(traj=run_args.traj, state_est=run_args.state_est, dynamics_randomization=run_args.dyn_random, clock_based=run_args.clock_based, reward=args.reward, history=run_args.history)
     elif args.env_name == "CassiePlayground-v0":
-        env = CassiePlayground(traj=run_args.traj, state_est=run_args.state_est, dynamics_randomization=run_args.dyn_random, clock_based=run_args.clock_based, reward=run_args.reward, history=run_args.history)
+        env = CassiePlayground(traj=run_args.traj, state_est=run_args.state_est, dynamics_randomization=run_args.dyn_random, clock_based=run_args.clock_based, reward=args.reward, history=run_args.history)
     else:
         env = CassieStandingEnv(state_est=run_args.state_est)
-    
+
+    if args.debug:
+        env.debug = True
+
+    print(env.reward_func)
 
     old_settings = termios.tcgetattr(sys.stdin)
 
@@ -511,7 +515,8 @@ if __name__ == "__main__":
         parser.add_argument("--path", type=str, default="./trained_models/ppo/Cassie-v0/7b7e24-seed0/", help="path to folder containing policy and run details")
         parser.add_argument("--env_name", default="Cassie-v0", type=str)
         parser.add_argument("--traj_len", default=400, type=str)
-        parser.add_argument("--history", default=0, type=int)                                         # number of previous states to use as input
+        parser.add_argument("--history", default=0, type=int)                                    # number of previous states to use as input
+        parser.add_argument("--debug", default=False, action='store_true')
         args = parser.parse_args()
 
         run_args = pickle.load(open(args.path + "experiment.pkl", "rb"))
