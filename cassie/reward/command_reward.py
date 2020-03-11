@@ -58,7 +58,7 @@ def command_reward(self):
     curr_orient = quaternion2euler(qpos[3:7])[2]
 
     # desired speed and orientation
-    desired_pos    = self.command_traj.global_pos[self.command_counter]
+    desired_pos    = self.command_traj.global_pos[self.command_counter] + self.last_position
     desired_speed  = self.command_traj.speed_cmd[self.command_counter]
     desired_orient = self.command_traj.orient[self.command_counter]
 
@@ -78,6 +78,7 @@ def command_reward(self):
         reward
         )
         )
+        print(self.command_counter)
         print("actual speed:  {}\tdesired_speed:  {}".format(curr_speed, self.speed))
         print("actual compos: {}\tdesired_pos:    {}".format(curr_pos[0:2], desired_pos[0:2]))
         print("actual orient: {}\tdesired_orient: {}".format(curr_orient, desired_orient))

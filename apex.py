@@ -151,7 +151,7 @@ def eval_policy(policy, args, run_args):
         return select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], [])
 
     max_traj_len = args.traj_len
-    visualize = True
+    visualize = False
 
     if args.env_name == "Cassie-v0":
         env = CassieEnv(traj=run_args.traj, state_est=run_args.state_est, dynamics_randomization=run_args.dyn_random, clock_based=run_args.clock_based, reward=args.reward, history=run_args.history)

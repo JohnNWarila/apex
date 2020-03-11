@@ -64,6 +64,7 @@ class CassiePlayground:
     dirname = os.path.dirname(__file__)
     traj_path = os.path.join(dirname, "trajectory", "command_trajectory.pkl")
     self.command_traj = CommandTrajectory(traj_path)
+    self.last_position = [0.0, 0.0, 1.0]
 
     self.observation_space, self.clock_inds, self.mirrored_obs = self.set_up_state_space()
 
@@ -221,13 +222,14 @@ class CassiePlayground:
 
       self.time  += 1
       self.phase += self.phase_add
+      self.command_counter += self.phase_add
 
       if (self.aslip_traj and self.phase >= self.phaselen) or self.phase > self.phaselen:
           self.phase = 0
           self.counter += 1
-          self.command_counter += 1
 
       if self.command_counter >= self.command_traj.trajlen:
+          self.last_position += self.command_traj.global_pos[-1]
           self.command_counter = 0
 
       # Early termination
