@@ -62,7 +62,7 @@ class CassiePlayground:
         self.speed = 0
 
     dirname = os.path.dirname(__file__)
-    traj_path = os.path.join(dirname, "trajectory", "command_trajectory.pkl")
+    traj_path = os.path.join(dirname, "trajectory", "command_trajectory_alternate.pkl")
     self.command_traj = CommandTrajectory(traj_path)
     self.last_position = [0.0, 0.0, 1.0]
 
