@@ -31,6 +31,12 @@ class CommandTrajectory:
         
         self.trajlen = len(self.speed_cmd)
 
+        # print("positions:\n{}\n\nvelocities:\n{}\n\norient:\n{}\n".format(self.global_pos[:5], self.speed_cmd[:5], self.orient[:5]))
+        # print(self.speed_cmd.shape)
+        # print(self.orient.shape)
+        # print(np.max(self.speed_cmd))
+        # input()
+
 class CassiePlayground:
   def __init__(self, traj='walking', simrate=60, clock_based=False, state_est=False, dynamics_randomization=False, no_delta=False, reward="command", history=0):
     self.sim = CassieSim("./cassie/cassiemujoco/cassie.xml")
@@ -62,7 +68,7 @@ class CassiePlayground:
         self.speed = 0
 
     dirname = os.path.dirname(__file__)
-    traj_path = os.path.join(dirname, "trajectory", "command_trajectory_alternate.pkl")
+    traj_path = os.path.join(dirname, "trajectory", "command_trajectory_new.pkl")
     self.command_traj = CommandTrajectory(traj_path)
     self.last_position = [0.0, 0.0, 1.0]
 
@@ -224,11 +230,14 @@ class CassiePlayground:
       self.phase += self.phase_add
       self.command_counter += self.phase_add
 
+      if self.debug and self.command_counter % self.phaselen == 0:
+          print("speed cmd: {}\norient cmd: {}\n".format(self.command_traj.speed_cmd[self.command_counter], self.command_traj.orient[self.command_counter]))
+
       if (self.aslip_traj and self.phase >= self.phaselen) or self.phase > self.phaselen:
           self.phase = 0
           self.counter += 1
 
-      if self.command_counter >= self.command_traj.trajlen:
+      if self.command_counter >= self.command_traj.trajlen - 1:
           self.last_position += self.command_traj.global_pos[-1]
           self.command_counter = 0
 
@@ -269,7 +278,7 @@ class CassiePlayground:
       self.phase = random.randint(0, self.phaselen)
       self.time = 0
       self.counter = 0
-      self.command_counter = 0
+      self.phase = random.randint(0, self.command_traj.trajlen)
       self.speed = self.command_traj.speed_cmd[self.command_counter]
 
       qpos, qvel = self.get_ref_state(self.phase)
@@ -570,7 +579,7 @@ class CassiePlayground:
       # line trajectories.
 
       # Update speed
-      self.speed = self.command_traj.speed_cmd[self.command_counter]
+      self.speed = self.command_traj.speed_cmd[self.command_counter + 1]
 
       # Update orientation, translational vel, translational accel
       orient_add = self.command_traj.orient[self.command_counter] - self.command_traj.prev_orient
@@ -609,13 +618,16 @@ class CassiePlayground:
       robot_state = np.concatenate([
           [self.cassie_state.pelvis.position[2] - self.cassie_state.terrain.height], # pelvis height
           torch.FloatTensor(new_orient),                                                               # pelvis orientation
+        #   self.cassie_state.pelvis.orientation[:],
           self.cassie_state.motor.position[:],                                     # actuated joint positions
 
           torch.FloatTensor(new_transvel),                       # pelvis translational velocity
+        # self.cassie_state.pelvis.translationalVelocity[:],
           self.cassie_state.pelvis.rotationalVelocity[:],                          # pelvis rotational velocity 
           self.cassie_state.motor.velocity[:],                                     # actuated joint velocities
 
           torch.FloatTensor(new_transaccel),                   # pelvis translational acceleration
+        # self.cassie_state.pelvis.translationalAcceleration[:],
           
           self.cassie_state.joint.position[:],                                     # unactuated joint positions
           self.cassie_state.joint.velocity[:]                                      # unactuated joint velocities
