@@ -72,9 +72,9 @@ def command_reward(self):
 
     if self.debug:
         print("reward: {6}\nspeed:\t{0:.2f}, % = {1:.2f}\ncompos:\t{2:.2f}, % = {3:.2f}\norient:\t{4:.2f}, % = {5:.2f}\n\n".format(
-        0.2  * np.exp(-speed_error),       0.2 * np.exp(-speed_error) / reward * 100,
-        0.3 * np.exp(-compos_error),    0.3 * np.exp(-compos_error) / reward * 100,
-        0.5 * np.exp(-orientation_error),    0.175 * np.exp(-orientation_error) / reward * 100,
+        0.325  * np.exp(-speed_error),       0.2 * np.exp(-speed_error) / reward * 100,
+        0.35 * np.exp(-compos_error),    0.3 * np.exp(-compos_error) / reward * 100,
+        0.325 * np.exp(-orientation_error),    0.175 * np.exp(-orientation_error) / reward * 100,
         reward
         )
         )
