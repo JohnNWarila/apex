@@ -437,9 +437,9 @@ class PPO:
                 logger.add_scalar("Misc/Critic Loss", critic_loss, itr)
                 logger.add_scalar("Misc/Actor Loss", actor_loss, itr)
 
-                logger.add_histogram("Misc/Sample Times", samp_time[0:itr+1], itr)
-                logger.add_histogram("Misc/Optimize Times", opt_time[0:itr+1], itr)
-                logger.add_histogram("Misc/Evaluation Times", eval_time[0:itr+1], itr)
+                logger.add_scalar("Misc/Sample Times", samp_time[itr], itr)
+                logger.add_scalar("Misc/Optimize Times", opt_time[itr], itr)
+                logger.add_scalar("Misc/Evaluation Times", eval_time[itr], itr)
 
                 for i in range(pdf.loc.shape[1]): # go thru al actions
                     logger.add_histogram("Action Dist/action_"+str(i), pdf.loc[:,i], itr)

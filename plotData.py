@@ -4,16 +4,14 @@ import torch
 from torch.autograd import Variable
 import time
 
-from rl.utils import renderpolicy
 from cassie import CassieEnv
 from cassie.no_delta_env import CassieEnv_nodelta
 from cassie.speed_env import CassieEnv_speed
 from cassie.speed_double_freq_env import CassieEnv_speed_dfreq
 from cassie.speed_no_delta_neutral_foot_env import CassieEnv_speed_no_delta_neutral_foot
-from cassie.standing_env import CassieEnv_stand
 from cassie.speed_sidestep_env import CassieEnv_speed_sidestep
 
-from rl.policies import GaussianMLP
+from rl.policies.actor import Gaussian_FF_Actor
 
 def avg_pols(policies, state):
     total_act = np.zeros(10)
@@ -27,8 +25,8 @@ def avg_pols(policies, state):
 # cassie_env = CassieEnv_nodelta("walking", clock_based=True, state_est=False)
 # cassie_env = CassieEnv_speed("walking", clock_based=True, state_est=True)
 # cassie_env = CassieEnv_speed_dfreq("walking", clock_based=True, state_est=False)
-# cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", clock_based=True, state_est=True)
-cassie_env = CassieEnv_speed_sidestep("walking", simrate = 60, clock_based=True, state_est=True)
+cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", clock_based=True, state_est=True)
+# cassie_env = CassieEnv_speed_sidestep("walking", simrate = 60, clock_based=True, state_est=True)
 # cassie_env = CassieEnv_stand(state_est=False)
 
 obs_dim = cassie_env.observation_space.shape[0] # TODO: could make obs and ac space static properties
@@ -40,10 +38,10 @@ limittargs = False
 lininterp = False
 offset = np.array([0.0045, 0.0, 0.4973, -1.1997, -1.5968, 0.0045, 0.0, 0.4973, -1.1997, -1.5968])
 
-# file_prefix = "fwrd_walk_StateEst_speed-05-3_freq1-2_footvelpenalty_heightflag_footxypenalty"
-file_prefix = "sidestep_StateEst_speedmatch_footytraj_doublestance_time0.4_land0.4_vels_avgdiff_simrate60_bigweight"#_actpenalty_retrain"
+file_prefix = "fwrd_walk_StateEst_trajmatch_(1)"
+# file_prefix = "sidestep_StateEst_speedmatch_footytraj_doublestance_time0.4_land0.4_vels_avgdiff_simrate60_bigweight"#_actpenalty_retrain"
 # file_prefix = "nodelta_neutral_StateEst_symmetry_speed0-3_freq1-2"
-policy = torch.load("./trained_models/{}.pt".format(file_prefix))
+policy = torch.load("./trained_models/{}_actor.pt".format(file_prefix))
 # policy.bounded = False
 # policy = torch.load("./trained_models/nodelta_neutral_StateEst_symmetry_speed0-3_freq1-2.pt")
 policy.eval()
@@ -93,7 +91,7 @@ with torch.no_grad():
     cassie_env.phase_add = 1
     for i in range(pre_steps):
         if not do_multi:
-            _, action = policy.act(state, True)
+            action = policy(state, True)
             state, reward, done, _ = cassie_env.step(action.data.numpy())
         else:
             action = avg_pols(policies, state)
@@ -101,7 +99,7 @@ with torch.no_grad():
         state = torch.Tensor(state)
     for i in range(num_steps):
         if not do_multi:
-            _, action = policy.act(state, True)
+            action = policy(state, True)
             action = action.data.numpy()
         else:
             action = avg_pols(policies, state)
