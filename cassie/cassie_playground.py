@@ -68,7 +68,7 @@ class CassiePlayground:
         self.speed = 0
 
     dirname = os.path.dirname(__file__)
-    traj_path = os.path.join(dirname, "trajectory", "command_trajectory_new.pkl")
+    traj_path = os.path.join(dirname, "trajectory", "command_trajectory.pkl")
     self.command_traj = CommandTrajectory(traj_path)
     self.last_position = [0.0, 0.0, 1.0]
 
@@ -582,7 +582,8 @@ class CassiePlayground:
       self.speed = self.command_traj.speed_cmd[self.command_counter + 1]
 
       # Update orientation, translational vel, translational accel
-      orient_add = self.command_traj.orient[self.command_counter] - self.command_traj.prev_orient
+      # TODO: should orient add use actual robot orient or previous trajectory orient command for calculation below?
+      orient_add = self.command_traj.orient[self.command_counter] - self.cassie_state.pelvis.orientation[2]
       quaternion = euler2quat(z=orient_add, x=0, y=0)
       iquaternion = inverse_quaternion(quaternion)
       curr_orient = self.cassie_state.pelvis.orientation[:]
