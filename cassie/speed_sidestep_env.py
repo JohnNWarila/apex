@@ -275,13 +275,15 @@ class CassieEnv_speed_sidestep:
         self.side_speed = 0
         self.max_force = 0
 
-        qpos, qvel = self.get_ref_state(self.phase)
+        # qpos, qvel = self.get_ref_state(self.phase)
 
-        self.sim.set_qpos(qpos)
-        self.sim.set_qvel(qvel)
+        # self.sim.set_qpos(qpos)
+        # self.sim.set_qvel(qvel)
+        self.sim.reset()
 
         # Need to reset u? Or better way to reset cassie_state than taking step
-        self.cassie_state = self.sim.step_pd(self.u)
+        # self.cassie_state = self.sim.step_pd(self.u)
+        self.reset_cassie_state()
         self.phase_add = 1
         ref_pos, ref_vel = self.get_ref_state(self.phase)
         self.prev_action = None
@@ -294,6 +296,19 @@ class CassieEnv_speed_sidestep:
         self.r_footvel_diff = 0
 
         return self.get_full_state()
+
+    def reset_cassie_state(self):
+        # Only reset parts of cassie_state that is used in get_full_state
+        self.cassie_state.pelvis.position[:] = [0, 0, 1.01]
+        self.cassie_state.pelvis.orientation[:] = [1, 0, 0, 0]
+        self.cassie_state.pelvis.rotationalVelocity[:] = np.zeros(3)
+        self.cassie_state.pelvis.translationalVelocity[:] = np.zeros(3)
+        self.cassie_state.pelvis.translationalAcceleration[:] = np.zeros(3)
+        self.cassie_state.terrain.height = 0
+        self.cassie_state.motor.position[:] = [0.0045, 0, 0.4973, -1.1997, -1.5968, 0.0045, 0, 0.4973, -1.1997, -1.5968]
+        self.cassie_state.motor.velocity[:] = np.zeros(10)
+        self.cassie_state.joint.position[:] = [0, 1.4267, -1.5968, 0, 1.4267, -1.5968]
+        self.cassie_state.joint.velocity[:] = np.zeros(6)
     
     def set_joint_pos(self, jpos, fbpos=None, iters=5000):
         """

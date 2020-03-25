@@ -14,7 +14,7 @@ import time
 
 # filename = "fwrd_walk_StateEst_speed-05-3_freq1-2"
 def convert_policy(filename):
-    old_policy = torch.load("./trained_models/old_policies/{}.pt".format(filename))
+    old_policy = torch.load("./trained_models//{}.pt".format(filename))
     old_dict = old_policy.state_dict()
 
     obs_dim = old_policy.state_dict()['actor_layers.0.weight'].shape[1]
@@ -46,7 +46,10 @@ def convert_policy(filename):
     torch.save(actor, "./trained_models/new_policies/"+filename+"_actor.pt")
     torch.save(critic, "./trained_models/new_policies/"+filename+"_critic.pt")
 
-for filename in os.listdir("./trained_models/old_policies/"):
-    policy, ext = os.path.splitext(filename)
-    print("Converting policy ", filename)
-    convert_policy(policy)
+# for filename in os.listdir("./trained_models/old_policies/"):
+#     policy, ext = os.path.splitext(filename)
+#     print("Converting policy ", filename)
+#     convert_policy(policy)
+
+
+convert_policy("nodelta_neutral_StateEst_symmetry_speed0-3_freq1-2")

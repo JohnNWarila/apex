@@ -48,12 +48,12 @@ def renderpolicy_speedinput(env, policy, deterministic=False, speedup=1, dt=0.05
                 # elif c == 'd':
                 #     env.side_speed -= .1
                 #     print("Decreasing side speed to: ", env.side_speed)
-                # elif c == 'j':
-                #     env.phase_add += .1
-                #     print("Increasing frequency to: ", env.phase_add)
-                # elif c == 'h':
-                #     env.phase_add -= .1
-                #     print("Decreasing frequency to: ", env.phase_add)
+                elif c == 'j':
+                    env.phase_add += .1
+                    print("Increasing frequency to: ", env.phase_add)
+                elif c == 'h':
+                    env.phase_add -= .1
+                    print("Decreasing frequency to: ", env.phase_add)
                 elif c == 'l':
                     orient_add += .1
                     print("Increasing orient_add to: ", orient_add)
@@ -92,7 +92,8 @@ def renderpolicy_speedinput(env, policy, deterministic=False, speedup=1, dt=0.05
                     state[20:23] = torch.FloatTensor(new_translationalVelocity)
                
                 # Get action
-                action = policy.act(state, deterministic)
+                # _, action = policy.act(state, deterministic)
+                action = policy(state, deterministic)
                 if deterministic:
                     action = action.data.numpy()
                 else:

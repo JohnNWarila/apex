@@ -1,9 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import torch
-from torch.autograd import Variable
-import time
 
+<<<<<<< HEAD
 from cassie import CassieEnv
 from cassie.no_delta_env import CassieEnv_nodelta
 from cassie.speed_env import CassieEnv_speed
@@ -12,14 +12,27 @@ from cassie.speed_no_delta_neutral_foot_env import CassieEnv_speed_no_delta_neut
 from cassie.speed_sidestep_env import CassieEnv_speed_sidestep
 
 from rl.policies.actor import Gaussian_FF_Actor
+=======
+# from cassie import CassieEnv
+# from cassie.no_delta_env import CassieEnv_nodelta
+# from cassie.speed_env import CassieEnv_speed
+# from cassie.speed_double_freq_env import CassieEnv_speed_dfreq
+from cassie.speed_no_delta_neutral_foot_env import CassieEnv_speed_no_delta_neutral_foot
+from cassie.speed_sidestep_env import CassieEnv_speed_sidestep
+
+# from rl.policies import GaussianMLP
+from rl.policies.actor import Gaussian_FF_Actor
+plt.rcParams['axes.grid'] = True
+>>>>>>> 04634a7f226e7e932877a800b16ae8580b802142
 
 def avg_pols(policies, state):
     total_act = np.zeros(10)
     for policy in policies:
-        _, action = policy.act(state, False)
+        action = policy(state, False)
         total_act += action.data[0].numpy()
     return total_act / len(policies)
 
+<<<<<<< HEAD
 # Load environment and policy
 # cassie_env = CassieEnv("walking", clock_based=True, state_est=False)
 # cassie_env = CassieEnv_nodelta("walking", clock_based=True, state_est=False)
@@ -32,19 +45,37 @@ cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", clock_based=True, 
 obs_dim = cassie_env.observation_space.shape[0] # TODO: could make obs and ac space static properties
 action_dim = cassie_env.action_space.shape[0]
 
+=======
+>>>>>>> 04634a7f226e7e932877a800b16ae8580b802142
 do_multi = False
 no_delta = True
 limittargs = False
 lininterp = False
 offset = np.array([0.0045, 0.0, 0.4973, -1.1997, -1.5968, 0.0045, 0.0, 0.4973, -1.1997, -1.5968])
+simrate = 60
 
+<<<<<<< HEAD
 file_prefix = "fwrd_walk_StateEst_trajmatch_(1)"
 # file_prefix = "sidestep_StateEst_speedmatch_footytraj_doublestance_time0.4_land0.4_vels_avgdiff_simrate60_bigweight"#_actpenalty_retrain"
 # file_prefix = "nodelta_neutral_StateEst_symmetry_speed0-3_freq1-2"
 policy = torch.load("./trained_models/{}_actor.pt".format(file_prefix))
+=======
+file_prefix = "fwrd_walk_StateEst_speed-05-3_freq1-2_footvelpenalty_heightflag_footxypenalty"
+# file_prefix = "sidestep_StateEst_speedmatch_footytraj_doublestance_time0.4_land0.4_vels_avgdiff_simrate60_bigweight"#_actpenalty_retrain"
+# file_prefix = "nodelta_neutral_StateEst_symmetry_speed0-3_freq1-2"
+policy = torch.load("./trained_models/new_policies/{}_actor.pt".format(file_prefix))
+>>>>>>> 04634a7f226e7e932877a800b16ae8580b802142
 # policy.bounded = False
 # policy = torch.load("./trained_models/nodelta_neutral_StateEst_symmetry_speed0-3_freq1-2.pt")
 policy.eval()
+
+# Load environment and policy
+# cassie_env = CassieEnv("walking", clock_based=True, state_est=False)
+# cassie_env = CassieEnv_nodelta("walking", clock_based=True, state_est=False)
+# cassie_env = CassieEnv_speed("walking", clock_based=True, state_est=True)
+# cassie_env = CassieEnv_speed_dfreq("walking", clock_based=True, state_est=False)
+cassie_env = CassieEnv_speed_no_delta_neutral_foot("walking", simrate=simrate,clock_based=True, state_est=True)
+# cassie_env = CassieEnv_speed_sidestep("walking", simrate = 60, clock_based=True, state_est=True)
 
 policies = []
 if do_multi:
@@ -63,9 +94,8 @@ if do_multi:
         policy.eval()
         policies.append(policy)
 
-num_steps = 100
-pre_steps = 300
-simrate = 60
+num_steps = 60 * int(60/simrate)
+pre_steps = 200 * int(60/simrate)
 torques = np.zeros((num_steps*simrate, 10))
 GRFs = np.zeros((num_steps*simrate, 2))
 targets = np.zeros((num_steps*simrate, 10))
@@ -184,12 +214,13 @@ for i in range(5):
     ax[1][i].set_xlabel("Timesteps (0.03 sec)")
 
 plt.tight_layout()
-plt.savefig("./apex_plots/"+file_prefix+"_torques.png")
+plt.savefig("./new_apex_plots/"+file_prefix+"_torques.png")
 
 # Graph GRF data
 fig, ax = plt.subplots(2, figsize=(10, 5))
 t = np.linspace(0, num_steps-1, num_steps*simrate)
 ax[0].set_ylabel("GRFs")
+ax[1].set_ylabel("GRFs")
 
 ax[0].plot(t, GRFs[:, 0])
 ax[0].set_title("Left Foot")
@@ -199,7 +230,7 @@ ax[1].set_title("Right Foot")
 ax[1].set_xlabel("Timesteps (0.03 sec)")
 
 plt.tight_layout()
-plt.savefig("./apex_plots/"+file_prefix+"_GRFs.png")
+plt.savefig("./new_apex_plots/"+file_prefix+"_GRFs.png")
 
 # Graph PD target data
 fig, ax = plt.subplots(2, 5, figsize=(15, 5))
@@ -215,7 +246,7 @@ for i in range(5):
     ax[1][i].set_xlabel("Timesteps (0.03 sec)")
 
 plt.tight_layout()
-plt.savefig("./apex_plots/"+file_prefix+"_targets.png")
+plt.savefig("./new_apex_plots/"+file_prefix+"_targets.png")
 
 # Graph action data
 fig, ax = plt.subplots(2, 5, figsize=(15, 5))
@@ -231,7 +262,7 @@ for i in range(5):
     ax[1][i].set_xlabel("Timesteps (0.03 sec)")
 
 plt.tight_layout()
-plt.savefig("./apex_plots/"+file_prefix+"_actions.png")
+plt.savefig("./new_apex_plots/"+file_prefix+"_actions.png")
 
 # Graph state data
 fig, ax = plt.subplots(2, 2, figsize=(10, 5))
@@ -249,7 +280,7 @@ for i in range(2):
     ax[1][i].set_xlabel("Timesteps (0.03 sec)")
 
 plt.tight_layout()
-plt.savefig("./apex_plots/"+file_prefix+"_state.png")
+plt.savefig("./new_apex_plots/"+file_prefix+"_state.png")
 
 # Graph feet qpos data
 fig, ax = plt.subplots(5, 2, figsize=(12, 6), sharex=True, sharey='row')
@@ -272,7 +303,7 @@ for i in range(2):
         ax[j+2][i].set_ylabel("Velocity (m/s)")    
 
 plt.tight_layout()
-plt.savefig("./apex_plots/"+file_prefix+"_feet.png")
+plt.savefig("./new_apex_plots/"+file_prefix+"_feet.png")
 
 # Graph phase portrait for actuated joints
 fig, ax = plt.subplots(1, 5, figsize=(15, 4))
@@ -288,7 +319,7 @@ for i in range(5):
     ax[i].set_xlabel("Angle")
 
 plt.tight_layout()
-plt.savefig("./apex_plots/"+file_prefix+"_phaseportrait.png")
+plt.savefig("./new_apex_plots/"+file_prefix+"_phaseportrait.png")
 
 # Misc Plotting
 fig, ax = plt.subplots()
@@ -299,4 +330,4 @@ t = np.linspace(0, num_steps-1, num_steps*simrate)
 ax.set_ylabel("Height (m)")
 ax.set_title("Pelvis Height")
 ax.plot(t, pelheight)
-plt.savefig("./apex_plots/"+file_prefix+"_misc.png")
+plt.savefig("./new_apex_plots/"+file_prefix+"_misc.png")
