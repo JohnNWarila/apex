@@ -42,7 +42,7 @@ class CassiePlayground:
     self.sim = CassieSim("./cassie/cassiemujoco/cassie.xml")
     self.vis = None
 
-    self.reward_func = "command"
+    self.reward_func = reward
 
     self.clock_based = clock_based
     self.state_est = state_est
@@ -524,6 +524,10 @@ class CassiePlayground:
           return iros_paper_reward(self)
       elif self.reward_func == "command":
           return command_reward(self)
+      elif self.reward_func == "command_no_pos":
+          return command_reward_no_pos(self)
+      elif self.reward_func == "command_keepalive":
+          return command_reward_keepalive(self)
       else:
           raise NotImplementedError
 
