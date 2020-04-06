@@ -128,4 +128,4 @@ ref_qposes.png
 # testing directory files
 /tools/aslip_pipeline/testTS_logs/*
 /tools/aslip_pipeline/testVaryVel_logs/*
-/tools/apex_plots/*
+/tools/apex_plots/*tools/waypoints.csv

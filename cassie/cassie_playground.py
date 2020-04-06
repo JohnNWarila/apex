@@ -39,7 +39,7 @@ class CommandTrajectory:
 
 class CassiePlayground:
   def __init__(self, traj='walking', simrate=60, clock_based=False, state_est=False, dynamics_randomization=False, no_delta=False, reward="command", history=0):
-    self.sim = CassieSim("./cassie/cassiemujoco/cassie.xml")
+    self.sim = CassieSim("./cassie/cassiemujoco/cassie_copy.xml")
     self.vis = None
 
     self.reward_func = reward
